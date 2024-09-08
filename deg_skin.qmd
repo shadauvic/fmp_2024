@@ -1,0 +1,3580 @@
+# DEG Skin
+
+Analysis of all skin samples
+
+```{r}
+library(dplyr)
+library(kableExtra)
+library(data.table)
+library(Seurat)
+library(hdf5r)
+library(ggplot2)
+library(Seurat)
+library(SeuratData)
+library(cowplot)
+library(patchwork)
+library(pheatmap)
+library(scAnnotatR)
+library(scRNAseq)
+library(celldex)
+library(SingleR)
+library(scuttle)
+library(harmony)
+library(scDblFinder)
+library(Seurat)
+library(scuttle)
+library(scran)
+library(cowplot)
+library(scater)
+library(presto)
+library(DESeq2)
+library(speckle)
+library(limma)
+library(ggrepel)
+library(grid)
+
+options(future.globals.maxSize = 2e9)
+options(Seurat.object.assay.version = "v5")
+options(timeout=360)
+
+config <- config::get()
+```
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = TRUE, eval = TRUE, cache.lazy = FALSE)
+```
+
+```{r}
+libs_to_process <- data.table(idx = c(3, 5, 7, 9, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 35, 40, 42, 44, 46, 48 , 50, 52, 54),
+                              h5file = c(config$h5_LIB_03,
+                                          config$h5_LIB_05,
+                                          config$h5_LIB_07,
+                                          config$h5_LIB_09,
+                                          config$h5_LIB_13,
+                                          config$h5_LIB_15,
+                                          config$h5_LIB_17,
+                                          config$h5_LIB_19,
+                                          config$h5_LIB_21,
+                                          config$h5_LIB_23,
+                                          config$h5_LIB_25,
+                                          config$h5_LIB_27,
+                                          config$h5_LIB_29,
+                                          config$h5_LIB_31,
+                                          config$h5_LIB_35,
+                                          config$h5_LIB_40,
+                                          config$h5_LIB_42,
+                                          config$h5_LIB_44,
+                                          config$h5_LIB_46,
+                                          config$h5_LIB_48,
+                                          config$h5_LIB_50,
+                                          config$h5_LIB_52,
+                                          config$h5_LIB_54))
+libs_to_process[, lib := paste0("lib_", sprintf("%02d", idx))]
+
+lib_03 <- Read10X_h5(config$h5_LIB_03, use.names = TRUE, unique.features = TRUE)
+lib_05 <- Read10X_h5(config$h5_LIB_05, use.names = TRUE, unique.features = TRUE)
+lib_07 <- Read10X_h5(config$h5_LIB_07, use.names = TRUE, unique.features = TRUE)
+lib_09 <- Read10X_h5(config$h5_LIB_09, use.names = TRUE, unique.features = TRUE)
+lib_13 <- Read10X_h5(config$h5_LIB_13, use.names = TRUE, unique.features = TRUE)
+lib_15 <- Read10X_h5(config$h5_LIB_15, use.names = TRUE, unique.features = TRUE)
+lib_17 <- Read10X_h5(config$h5_LIB_17, use.names = TRUE, unique.features = TRUE)
+lib_19 <- Read10X_h5(config$h5_LIB_19, use.names = TRUE, unique.features = TRUE)
+lib_21 <- Read10X_h5(config$h5_LIB_21, use.names = TRUE, unique.features = TRUE)
+lib_23 <- Read10X_h5(config$h5_LIB_23, use.names = TRUE, unique.features = TRUE)
+lib_25 <- Read10X_h5(config$h5_LIB_25, use.names = TRUE, unique.features = TRUE)
+lib_27 <- Read10X_h5(config$h5_LIB_27, use.names = TRUE, unique.features = TRUE)
+lib_29 <- Read10X_h5(config$h5_LIB_29, use.names = TRUE, unique.features = TRUE)
+lib_31 <- Read10X_h5(config$h5_LIB_31, use.names = TRUE, unique.features = TRUE)
+lib_35 <- Read10X_h5(config$h5_LIB_35, use.names = TRUE, unique.features = TRUE)
+lib_40 <- Read10X_h5(config$h5_LIB_40, use.names = TRUE, unique.features = TRUE)
+lib_42 <- Read10X_h5(config$h5_LIB_42, use.names = TRUE, unique.features = TRUE)
+lib_44 <- Read10X_h5(config$h5_LIB_44, use.names = TRUE, unique.features = TRUE)
+lib_46 <- Read10X_h5(config$h5_LIB_46, use.names = TRUE, unique.features = TRUE)
+lib_48 <- Read10X_h5(config$h5_LIB_48, use.names = TRUE, unique.features = TRUE)
+lib_50 <- Read10X_h5(config$h5_LIB_50, use.names = TRUE, unique.features = TRUE)
+lib_52 <- Read10X_h5(config$h5_LIB_52, use.names = TRUE, unique.features = TRUE)
+lib_54 <- Read10X_h5(config$h5_LIB_54, use.names = TRUE, unique.features = TRUE)
+```
+
+```{r}
+dt <- data.table( sample = c("lib_03", "lib_05", "lib_07", "lib_09", "lib_13", "lib_15", "lib_17", "lib_19", "lib_21", "lib_23", "lib_25","lib_27","lib_29","lib_31","lib_35","lib_40","lib_42","lib_44","lib_46","lib_48","lib_50","lib_52","lib_54"),
+      disease = c("PSO","HS","PSO","PSO","HS" ,"HS" ,"PSO","HS" ,"HS" ,"HS" ,"HS" ,"PSO","PSO","HS" ,"HS" ,"HS" ,"HS" ,"PPP","PSO","HS" ,"PSO","PPP","PPP"))
+
+setkey(dt, sample)
+
+dt.new <- data.table(sample = c("LIB_01","LIB_02","LIB_03","LIB_04","LIB_05","LIB_06","LIB_07","LIB_08","LIB_09","LIB_10","LIB_11","LIB_12","LIB_13","LIB_14","LIB_15","LIB_16","LIB_17","LIB_18","LIB_19","LIB_20","LIB_21","LIB_22","LIB_23","LIB_24","LIB_25","LIB_26","LIB_27","LIB_28","LIB_29","LIB_30","LIB_31","LIB_32","LIB_33","LIB_34","LIB_35","LIB_36","LIB_37","LIB_38","LIB_39","LIB_40","LIB_41","LIB_42","LIB_43","LIB_44","LIB_45","LIB_46","LIB_47","LIB_48","LIB_49","LIB_50","LIB_51","LIB_52","LIB_53","LIB_54","LIB_55"),
+                 disease=c("PSO","PSO","PSO","PSO","HS" ,"HS" ,"PSO","PSO","PSO","PSO","HS" ,"HS" ,"HS" ,"HS" ,"HS" ,"HS" ,"PSO","PSO","HS" ,"HS" ,"HS" ,"HS" ,"HS" ,"HS" ,"HS" ,"HS" ,"PSO","PSO","PSO","PSO","HS" ,"HS" ,"PSO","PSO","HS" ,"HS" ,"PPP","PPP","PPP","HS" ,"HS" ,"HS" ,"HS" ,"PPP","PPP","PSO","PSO","HS" ,"HS" ,"PSO","PSO","PPP","PPP","PPP","PPP"),
+                 gender=c("male","male","female","female","female","female","male", "male", "male","male","female","female","female","female","female","female","male","male","male","male","male","male","male","male","female","female","male" ,"male" ,"male" ,"male" ,"male" ,"male" ,"female","female","male" ,"male" ,"female","female","female","female","female","female","female","male" ,"male" ,"male" ,"male" ,"female","female","male" ,"male" ,"male" ,"male" ,'male' ,"male" ))
+```
+
+
+
+```{r}
+sce <- SingleCellExperiment(assays = list(counts = cbind(lib_03, lib_05, lib_07, lib_09, lib_13, lib_15, lib_17, lib_19, lib_21, lib_23, lib_25, lib_27, lib_29, lib_31, lib_35, lib_40, lib_42, lib_44, lib_46, lib_48, lib_50, lib_52, lib_54)))
+dim(sce)
+
+sce@colData$sample <- unlist(sapply(c("lib_03", "lib_05", "lib_07", "lib_09", "lib_13", "lib_15", "lib_17", "lib_19", "lib_21", "lib_23", "lib_25", "lib_27", "lib_29", "lib_31", "lib_35","lib_40","lib_42","lib_44","lib_46","lib_48","lib_50","lib_52","lib_54"), function(x) rep(x, ncol(get(x)))))
+
+
+sce@colData$disease <- dt[J(sce@colData$sample)]$disease
+```
+
+```{r}
+rm(lib_03, lib_05, lib_07, lib_09, lib_13, lib_15, lib_17, lib_19, lib_21, lib_23, lib_25, lib_27, lib_29, lib_31, lib_35, lib_40, lib_42, lib_44, lib_46,lib_48, lib_50, lib_52, lib_54)
+gc()
+```
+
+
+
+```{r}
+sce <- logNormCounts(sce)
+dec <- modelGeneVar(sce, block = sce$sample)
+hvgs <- getTopHVGs(dec, n = config$nb_genes)
+```
+
+```{r}
+sce <- scater::runPCA(sce, subset_row = hvgs, name = "scater_pca")
+```
+
+```{r}
+sce <- scater::runUMAP(sce, pca = config$pca_dims, name = "scater_umap")
+```
+
+
+```{r}
+sce <- scDblFinder(sce, dims = config$pca_dims, samples = sce@colData$sample)
+ table(sce$scDblFinder.class)
+```
+
+```{r}
+plot_grid(plotReducedDim (sce, colour_by = "scDblFinder.score", dimred = "scater_umap", point_size = 0.1), 
+          plotReducedDim (sce, colour_by = "scDblFinder.class", dimred = "scater_umap", point_size = 0.1), 
+          plotReducedDim (sce, colour_by = "sample", dimred = "scater_umap", point_size = 0.1), 
+          ncol = 3)
+```
+
+```{r}
+prd1 <- plotReducedDim (sce, colour_by = "scDblFinder.score", dimred = "scater_umap", point_size = 0.1)
+prd1 <- prd1 + ggtitle("Doublet Score") + theme(plot.title = element_text(hjust = 0.5))
+prd1
+```
+
+```{r}
+prd2 <- plotReducedDim (sce, colour_by = "scDblFinder.class", dimred = "scater_umap", point_size = 0.75)
+prd2 <- prd2 + ggtitle("Doublet Class") + theme(plot.title = element_text(hjust = 0.5))
+prd2
+```
+
+
+```{r}
+prd3 <- plotReducedDim (sce, colour_by = "sample", dimred = "scater_umap", point_size = 0.75)
+prd3 <- prd3 + ggtitle("Sample") + theme(plot.title = element_text(hjust = 0.5))
+prd3
+```
+
+
+
+
+
+```{r}
+sce.singlet <- sce[, sce$scDblFinder.class == "singlet"]
+```
+
+
+```{r}
+plot_grid(plotReducedDim(sce.singlet, colour_by = "scDblFinder.score", dimred = "scater_umap", point_size = 0.1), 
+          plotReducedDim(sce.singlet, colour_by = "scDblFinder.class", dimred = "scater_umap", point_size = 0.1), 
+          plotReducedDim(sce.singlet, colour_by = "sample", dimred = "scater_umap", point_size = 0.1), 
+          ncol = 3)
+```
+
+
+```{r}
+prd4 <- plotReducedDim (sce.singlet, colour_by = "scDblFinder.score", dimred = "scater_umap", point_size = 0.1)
+prd4 <- prd4 + ggtitle("Doublet Score after doublet removal") + theme(plot.title = element_text(hjust = 0.5))
+prd4
+```
+
+```{r}
+prd5 <- plotReducedDim (sce.singlet, colour_by = "scDblFinder.class", dimred = "scater_umap", point_size = 0.75)
+prd5 <- prd5 + ggtitle("Doublet Class after doublet removal") + theme(plot.title = element_text(hjust = 0.5))
+prd5
+```
+
+
+```{r}
+prd6 <- plotReducedDim (sce.singlet, colour_by = "sample", dimred = "scater_umap", point_size = 0.75)
+prd6 <- prd6 + ggtitle("Sample after doublet removal") + theme(plot.title = element_text(hjust = 0.5))
+prd6
+```
+
+```{r}
+rm(sce)
+gc()
+```
+
+
+
+```{r}
+seurat <- as.Seurat(sce.singlet)
+```
+
+```{r}
+DefaultAssay(seurat) <- 'originalexp'
+```
+
+
+```{r}
+rm(sce.singlet)
+gc()
+```
+
+
+```{r}
+options(repr.plot.height = 5, repr.plot.width = 12)
+dp01 <- DimPlot(object = seurat, reduction = "scater_pca", pt.size = .01, group.by = "sample", label.size = 2, raster = FALSE)
+dp01 <- dp01 + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp01 <- dp01 + ggtitle("Sample after doublet removal") + theme(plot.title = element_text(hjust = 0.5))
+dp01
+```
+
+
+```{r}
+vln01 <- VlnPlot(object = seurat, features = "PC_1", group.by = "sample", pt.size = 0)
+vln01 <- vln01 + ggtitle("Embedding values") + theme(plot.title = element_text(hjust = 0.5))
+vln01
+```
+### QC
+
+
+```{r}
+all.genes <- rownames(seurat)
+```
+
+```{r}
+seurat[["percent.mt"]] <- PercentageFeatureSet(seurat, pattern = "^MT-")
+```
+
+
+```{r}
+Idents(seurat) <- "disease"
+VlnPlot(seurat[, seurat$disease == "PSO"], features = c("nFeature_originalexp", "nCount_originalexp", "percent.mt"), ncol = 3, pt.size = 0.1, raster = FALSE)
+```
+
+```{r}
+Idents(seurat) <- "disease"
+VlnPlot(seurat[, seurat$disease == "HS"], features = c("nFeature_originalexp", "nCount_originalexp", "percent.mt"), ncol = 3, pt.size = 0.1, raster = FALSE)
+```
+
+```{r}
+Idents(seurat) <- "disease"
+VlnPlot(seurat[, seurat$disease == "PPP"], features = c("nFeature_originalexp", "nCount_originalexp", "percent.mt"), ncol = 3, pt.size = 0.1, raster = FALSE)
+```
+ 
+```{r}
+seurat <- subset(seurat, subset = nFeature_originalexp > 200 & nFeature_originalexp < 2500 & percent.mt < 5)
+```
+
+```{r}
+Idents(seurat) <- "disease"
+VlnPlot(seurat[, seurat$disease == "PSO"], features = c("nFeature_originalexp", "nCount_originalexp", "percent.mt"), ncol = 3, pt.size = 0.1, raster = FALSE)
+```
+
+```{r}
+Idents(seurat) <- "disease"
+VlnPlot(seurat[, seurat$disease == "HS"], features = c("nFeature_originalexp", "nCount_originalexp", "percent.mt"), ncol = 3, pt.size = 0.1, raster = FALSE)
+```
+
+```{r}
+Idents(seurat) <- "disease"
+VlnPlot(seurat[, seurat$disease == "PPP"], features = c("nFeature_originalexp", "nCount_originalexp", "percent.mt"), ncol = 3, pt.size = 0.1, raster = FALSE)
+```
+
+```{r}
+# store for comparison after normalization
+rna_before <- colSums(seurat@assays$originalexp@counts)  # Sum of counts per cell
+```
+
+```{r}
+seurat  <- Seurat::NormalizeData(seurat, verbose = FALSE, assay = "originalexp") 
+seurat  <- FindVariableFeatures(seurat, selection.method = "vst", nfeatures = config$nb_genes, assay = "originalexp")
+seurat  <- ScaleData(seurat, verbose = FALSE, assay = "originalexp", do.scale = TRUE)
+seurat  <- RunPCA(seurat, pc.genes = seurat@var.genes, npcs = config$pca_dims, verbose = FALSE, assay = "originalexp", reduction.name = "seurat_pca", reduction.key = "SEURAT_PC_")
+```
+
+### Explain variability
+
+```{r}
+variance_explained <- (seurat[["seurat_pca"]]@stdev)^2
+total_variance <- sum(variance_explained)
+variance_explained_by_pc <- variance_explained / total_variance
+variance_pc1 <- variance_explained_by_pc[1]
+variance_pc2 <- variance_explained_by_pc[2]
+cat("PC1 explains", round(variance_pc1 * 100, 2), "% of the variance\n")
+cat("PC2 explains", round(variance_pc2 * 100, 2), "% of the variance\n")
+```
+```{r}
+df <- data.frame(
+  PC = 1:length(variance_explained_by_pc),
+  Variance_Explained = variance_explained_by_pc
+)
+
+# Plot using ggplot2
+ggplot(df, aes(x = PC, y = Variance_Explained)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  geom_point(color = "red", size = 2) +  # Add points at the top of each bar
+  geom_line(aes(x = PC, y = Variance_Explained), color = "red", size = 1) +  # Connect points with a red line
+  geom_text(aes(label = round(Variance_Explained, 4)), vjust = -0.5, angle = 45, hjust = 0, size = 3) +  # Display values above bars at 45-degree angle
+  xlab("Principal Component") +
+  ylab("Proportion of Variance Explained") +
+  ggtitle("Variance Explained by Principal Components") +
+  ylim(0, max(df$Variance_Explained) * 1.1) +  # Add extra space above the highest bar
+  theme_minimal()
+```
+### Effect of Normalization on RNA
+
+```{r}
+rna_after <- colSums(seurat@assays$originalexp@data)
+common_cells <- intersect(names(rna_before), names(rna_after))
+
+# Step 4: Subset both RNA counts to only include common cells
+rna_before <- rna_before[common_cells]
+rna_after <- rna_after[common_cells]
+```
+
+```{r}
+df_rna <- data.frame(
+  Cell = names(rna_before),
+  RNA_Before = rna_before,
+  RNA_After = rna_after
+)
+```
+
+```{r}
+ggplot(df_rna, aes(x = "", y = RNA_Before)) +
+  geom_violin(fill = "skyblue") +
+  geom_violin(aes(x = "After Normalization", y = RNA_After), fill = "lightgreen") +
+  labs(title = "RNA Content Before and After Normalization", y = "Total RNA Content", x = "") +
+  theme_minimal()
+```
+
+```{r}
+summary_rna <- data.frame(
+  Statistic = c("Mean", "Median", "Standard Deviation"),
+  Before_Normalization = c(mean(rna_before), median(rna_before), sd(rna_before)),
+  After_Normalization = c(mean(rna_after), median(rna_after), sd(rna_after))
+)
+
+# Print the statistical summary
+print(summary_rna)
+```
+
+```{r}
+normalized_data <- seurat@assays$originalexp@data
+total_expression_per_cell <- colSums(normalized_data)
+df_total_expression <- data.frame(Total_Expression = total_expression_per_cell)
+
+# Step 3: Display the summary statistics of the total expression per cell
+summary(total_expression_per_cell)
+```
+
+
+```{r}
+ggplot(df_total_expression, aes(x = Total_Expression)) +
+  geom_histogram(binwidth = 500, fill = "#69b3a2", color = "black", alpha = 0.8) +  # Adjust bin width and colors
+  geom_vline(aes(xintercept = mean(Total_Expression)), color = "red", linetype = "dashed", size = 1) +  # Add mean line
+  labs(
+    title = "Total Expression Per Cell After Normalization",
+    subtitle = "mean total expression per cell",
+    x = "Total Expression",
+    y = "Number of Cells"
+  ) +
+  theme_minimal(base_size = 15) +  # Use a minimal theme for clean visuals
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5)
+  ) +
+  scale_x_continuous(labels = scales::comma)  
+```
+
+## Batch correction
+
+```{r}
+options(repr.plot.height = 2.5, repr.plot.width = 6)
+seurat <- RunHarmony(seurat, group.by.vars = "sample", 
+                   reduction.use = "seurat_pca",
+               plot_convergence = TRUE, 
+               kmeans_init_nstart=20, 
+               kmeans_init_iter_max=100, 
+               #reduction = "seurat_pca", 
+               reduction.save = "harmony",
+               assay.use = "originalexp", 
+               project.dim = FALSE)
+```
+
+```{r}
+seurat <- seurat %>% 
+    RunUMAP(reduction = "harmony", dims = 1:config$pca_dims, reduction.key = "SEURAT_UMAP_", reduction.name = "seurat_umap") %>% 
+    FindNeighbors(reduction = "harmony", dims = 1:config$pca_dims) %>% 
+    FindClusters(resolution = 2.0, algorithm = 2) %>% 
+    identity()
+# seurat$disease <- dt[seurat@meta.data$sample]$disease # run only after load
+```
+
+### batch correction visualization for cells 
+
+
+```{r}
+dp02 <- DimPlot(seurat, reduction = "harmony", label = TRUE, pt.size = 0.5, repel = TRUE)
+dp02 <- dp02 + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp02 <- dp02 + ggtitle("PCA based batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp02
+```
+
+```{r}
+dp03 <- DimPlot(seurat, reduction = "scater_umap", label = TRUE, pt.size = 0.5, repel = TRUE)
+dp03 <- dp03 + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp03 <- dp03 + ggtitle("UMAP before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp03
+```
+
+```{r}
+dp04 <- DimPlot(seurat, reduction = "seurat_umap", label = TRUE, pt.size = 0.5, repel = TRUE)
+dp04 <- dp04 + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp04 <- dp04 + ggtitle("UMAP after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp04
+```
+
+
+
+
+### batch correction visualization for LIBs
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp06 <- DimPlot(seurat, reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "sample")
+dp06 <- dp06 + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp06 <- dp06 + ggtitle("UMAP of the samples before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp06
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp07 <- DimPlot(seurat, reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "sample") 
+dp07 <- dp07 + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp07 <- dp07 + ggtitle("UMAP of samples after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp07
+```
+
+### batch correction visualization for diseases
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp08 <- DimPlot(seurat, reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "disease")
+dp08 <- dp08 + guides(color = guide_legend(override.aes = list(size=4), ncol=1) )
+dp08 <- dp08 + ggtitle("UMAP of diseases before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp08
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp09 <- DimPlot(seurat, reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "disease") 
+dp09 <- dp09 + guides(color = guide_legend(override.aes = list(size=4), ncol=1) )
+dp09 <- dp09 + ggtitle("UMAP of diseases after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp09
+```
+
+
+### batch correction visualization for individual diseases
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_dis_hs_before <- DimPlot(seurat[, seurat$disease == "HS"], reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "disease")
+dp_dis_hs_before <- dp_dis_hs_before + guides(color = guide_legend(override.aes = list(size=4), ncol=1) )
+dp_dis_hs_before <- dp_dis_hs_before + ggtitle("UMAP of HS before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_dis_hs_before
+```
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_dis_pso_before <- DimPlot(seurat[, seurat$disease == "PSO"], reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "disease")
+dp_dis_pso_before <- dp_dis_pso_before + guides(color = guide_legend(override.aes = list(size=4), ncol=1) )
+dp_dis_pso_before <- dp_dis_pso_before + ggtitle("UMAP of PSO before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_dis_pso_before
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_dis_ppp_before <- DimPlot(seurat[, seurat$disease == "PPP"], reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "disease")
+dp_dis_ppp_before <- dp_dis_ppp_before + guides(color = guide_legend(override.aes = list(size=4), ncol=1) )
+dp_dis_ppp_before <- dp_dis_ppp_before + ggtitle("UMAP of PPP before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_dis_ppp_before
+```
+
+
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_dis_hs_after <- DimPlot(seurat[, seurat$disease == "HS"], reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "disease") 
+dp_dis_hs_after <- dp_dis_hs_after + guides(color = guide_legend(override.aes = list(size=4), ncol=1) )
+dp_dis_hs_after <- dp_dis_hs_after + ggtitle("UMAP of HS after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_dis_hs_after
+```
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_dis_pso_after <- DimPlot(seurat[, seurat$disease == "PSO"], reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "disease") 
+dp_dis_pso_after <- dp_dis_pso_after + guides(color = guide_legend(override.aes = list(size=4), ncol=1) )
+dp_dis_pso_after <- dp_dis_pso_after + ggtitle("UMAP of PSO after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_dis_pso_after
+```
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_dis_ppp_after <- DimPlot(seurat[, seurat$disease == "PPP"], reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "disease") 
+dp_dis_ppp_after <- dp_dis_ppp_after + guides(color = guide_legend(override.aes = list(size=4), ncol=1) )
+dp_dis_ppp_after <- dp_dis_ppp_after + ggtitle("UMAP of PPP after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_dis_ppp_after
+```
+
+### Visualization of individual LIBs before and after batch correction
+
+```{r}
+#dp_lib_18_after <- DimPlot(seurat[, seurat$seurat_clusters == 18], reduction = "seurat_umap", label = TRUE, pt.size = 0.1, repel = TRUE)
+#dp_lib_18_after <- dp_lib_18_after + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+#dp_lib_18_after <- dp_lib_18_after + ggtitle("UMAP of LIB_18 after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+#dp_lib_18_after
+```
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_03_before <- DimPlot(seurat[, seurat$sample == "lib_03"], reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "sample")
+dp_lib_03_before <- dp_lib_03_before + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_03_before <- dp_lib_03_before + ggtitle("UMAP of LIB_03 before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_03_before
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_03_after <- DimPlot(seurat[, seurat$sample == "lib_03"], reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "sample") 
+dp_lib_03_after <- dp_lib_03_after + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_03_after <- dp_lib_03_after + ggtitle("UMAP of lib_03 after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_03_after
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_05_before <- DimPlot(seurat[, seurat$sample == "lib_05"], reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "sample")
+dp_lib_05_before <- dp_lib_05_before + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_05_before <- dp_lib_05_before + ggtitle("UMAP of LIB_05 before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_05_before
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_05_after <- DimPlot(seurat[, seurat$sample == "lib_05"], reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "sample") 
+dp_lib_05_after <- dp_lib_05_after + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_05_after <- dp_lib_05_after + ggtitle("UMAP of lib_05 after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_05_after
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_07_before <- DimPlot(seurat[, seurat$sample == "lib_07"], reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "sample")
+dp_lib_07_before <- dp_lib_07_before + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_07_before <- dp_lib_07_before + ggtitle("UMAP of LIB_07 before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_07_before
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_07_after <- DimPlot(seurat[, seurat$sample == "lib_07"], reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "sample") 
+dp_lib_07_after <- dp_lib_07_after + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_07_after <- dp_lib_07_after + ggtitle("UMAP of lib_07 after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_07_after
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_09_before <- DimPlot(seurat[, seurat$sample == "lib_09"], reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "sample")
+dp_lib_09_before <- dp_lib_09_before + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_09_before <- dp_lib_09_before + ggtitle("UMAP of LIB_09 before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_09_before
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_09_after <- DimPlot(seurat[, seurat$sample == "lib_09"], reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "sample") 
+dp_lib_09_after <- dp_lib_09_after + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_09_after <- dp_lib_09_after + ggtitle("UMAP of lib_09 after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_09_after
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_13_before <- DimPlot(seurat[, seurat$sample == "lib_13"], reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "sample")
+dp_lib_13_before <- dp_lib_13_before + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_13_before <- dp_lib_13_before + ggtitle("UMAP of LIB_13 before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_13_before
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_13_after <- DimPlot(seurat[, seurat$sample == "lib_13"], reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "sample") 
+dp_lib_13_after <- dp_lib_13_after + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_13_after <- dp_lib_13_after + ggtitle("UMAP of lib_13 after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_13_after
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_15_before <- DimPlot(seurat[, seurat$sample == "lib_15"], reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "sample")
+dp_lib_15_before <- dp_lib_15_before + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_15_before <- dp_lib_15_before + ggtitle("UMAP of LIB_15 before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_15_before
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_15_after <- DimPlot(seurat[, seurat$sample == "lib_15"], reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "sample") 
+dp_lib_15_after <- dp_lib_15_after + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_15_after <- dp_lib_15_after + ggtitle("UMAP of lib_15 after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_15_after
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_17_before <- DimPlot(seurat[, seurat$sample == "lib_17"], reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "sample")
+dp_lib_17_before <- dp_lib_17_before + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_17_before <- dp_lib_17_before + ggtitle("UMAP of LIB_17 before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_17_before
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_17_after <- DimPlot(seurat[, seurat$sample == "lib_17"], reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "sample") 
+dp_lib_17_after <- dp_lib_17_after + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_17_after <- dp_lib_17_after + ggtitle("UMAP of lib_17 after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_17_after
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_19_before <- DimPlot(seurat[, seurat$sample == "lib_19"], reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "sample")
+dp_lib_19_before <- dp_lib_19_before + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_19_before <- dp_lib_19_before + ggtitle("UMAP of LIB_19 before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_19_before
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_19_after <- DimPlot(seurat[, seurat$sample == "lib_19"], reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "sample") 
+dp_lib_19_after <- dp_lib_19_after + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_19_after <- dp_lib_19_after + ggtitle("UMAP of lib_19 after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_19_after
+```
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_21_before <- DimPlot(seurat[, seurat$sample == "lib_21"], reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "sample")
+dp_lib_21_before <- dp_lib_21_before + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_21_before <- dp_lib_21_before + ggtitle("UMAP of LIB_21 before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_21_before
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_21_after <- DimPlot(seurat[, seurat$sample == "lib_21"], reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "sample") 
+dp_lib_21_after <- dp_lib_21_after + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_21_after <- dp_lib_21_after + ggtitle("UMAP of lib_21 after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_21_after
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_23_before <- DimPlot(seurat[, seurat$sample == "lib_23"], reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "sample")
+dp_lib_23_before <- dp_lib_23_before + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_23_before <- dp_lib_23_before + ggtitle("UMAP of LIB_23 before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_23_before
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_23_after <- DimPlot(seurat[, seurat$sample == "lib_23"], reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "sample") 
+dp_lib_23_after <- dp_lib_23_after + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_23_after <- dp_lib_23_after + ggtitle("UMAP of lib_23 after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_23_after
+```
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_25_before <- DimPlot(seurat[, seurat$sample == "lib_25"], reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "sample")
+dp_lib_25_before <- dp_lib_25_before + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_25_before <- dp_lib_25_before + ggtitle("UMAP of LIB_25 before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_25_before
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_25_after <- DimPlot(seurat[, seurat$sample == "lib_25"], reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "sample") 
+dp_lib_25_after <- dp_lib_25_after + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_25_after <- dp_lib_25_after + ggtitle("UMAP of lib_25 after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_25_after
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_27_before <- DimPlot(seurat[, seurat$sample == "lib_27"], reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "sample")
+dp_lib_27_before <- dp_lib_27_before + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_27_before <- dp_lib_27_before + ggtitle("UMAP of LIB_27 before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_27_before
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_27_after <- DimPlot(seurat[, seurat$sample == "lib_27"], reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "sample") 
+dp_lib_27_after <- dp_lib_27_after + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_27_after <- dp_lib_27_after + ggtitle("UMAP of lib_27 after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_27_after
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_29_before <- DimPlot(seurat[, seurat$sample == "lib_29"], reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "sample")
+dp_lib_29_before <- dp_lib_29_before + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_29_before <- dp_lib_29_before + ggtitle("UMAP of LIB_29 before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_29_before
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_29_after <- DimPlot(seurat[, seurat$sample == "lib_29"], reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "sample") 
+dp_lib_29_after <- dp_lib_29_after + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_29_after <- dp_lib_29_after + ggtitle("UMAP of lib_29 after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_29_after
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_31_before <- DimPlot(seurat[, seurat$sample == "lib_31"], reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "sample")
+dp_lib_31_before <- dp_lib_31_before + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_31_before <- dp_lib_31_before + ggtitle("UMAP of LIB_31 before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_31_before
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_31_after <- DimPlot(seurat[, seurat$sample == "lib_31"], reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "sample") 
+dp_lib_31_after <- dp_lib_31_after + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_31_after <- dp_lib_31_after + ggtitle("UMAP of lib_31 after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_31_after
+```
+
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_35_before <- DimPlot(seurat[, seurat$sample == "lib_35"], reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "sample")
+dp_lib_35_before <- dp_lib_35_before + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_35_before <- dp_lib_35_before + ggtitle("UMAP of LIB_35 before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_35_before
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_35_after <- DimPlot(seurat[, seurat$sample == "lib_35"], reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "sample") 
+dp_lib_35_after <- dp_lib_35_after + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_35_after <- dp_lib_35_after + ggtitle("UMAP of lib_35 after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_35_after
+```
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_40_before <- DimPlot(seurat[, seurat$sample == "lib_40"], reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "sample")
+dp_lib_40_before <- dp_lib_40_before + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_40_before <- dp_lib_40_before + ggtitle("UMAP of LIB_40 before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_40_before
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_40_after <- DimPlot(seurat[, seurat$sample == "lib_40"], reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "sample") 
+dp_lib_40_after <- dp_lib_40_after + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_40_after <- dp_lib_40_after + ggtitle("UMAP of lib_40 after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_40_after
+```
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_42_before <- DimPlot(seurat[, seurat$sample == "lib_42"], reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "sample")
+dp_lib_42_before <- dp_lib_42_before + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_42_before <- dp_lib_42_before + ggtitle("UMAP of LIB_42 before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_42_before
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_42_after <- DimPlot(seurat[, seurat$sample == "lib_42"], reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "sample") 
+dp_lib_42_after <- dp_lib_42_after + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_42_after <- dp_lib_42_after + ggtitle("UMAP of lib_42 after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_42_after
+```
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_44_before <- DimPlot(seurat[, seurat$sample == "lib_44"], reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "sample")
+dp_lib_44_before <- dp_lib_44_before + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_44_before <- dp_lib_44_before + ggtitle("UMAP of LIB_44 before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_44_before
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_44_after <- DimPlot(seurat[, seurat$sample == "lib_44"], reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "sample") 
+dp_lib_44_after <- dp_lib_44_after + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_44_after <- dp_lib_44_after + ggtitle("UMAP of lib_44 after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_44_after
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_46_before <- DimPlot(seurat[, seurat$sample == "lib_46"], reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "sample")
+dp_lib_46_before <- dp_lib_46_before + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_46_before <- dp_lib_46_before + ggtitle("UMAP of LIB_46 before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_46_before
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_46_after <- DimPlot(seurat[, seurat$sample == "lib_46"], reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "sample") 
+dp_lib_46_after <- dp_lib_46_after + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_46_after <- dp_lib_46_after + ggtitle("UMAP of lib_46 after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_46_after
+```
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_48_before <- DimPlot(seurat[, seurat$sample == "lib_48"], reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "sample")
+dp_lib_48_before <- dp_lib_48_before + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_48_before <- dp_lib_48_before + ggtitle("UMAP of LIB_48 before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_48_before
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_48_after <- DimPlot(seurat[, seurat$sample == "lib_48"], reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "sample") 
+dp_lib_48_after <- dp_lib_48_after + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_48_after <- dp_lib_48_after + ggtitle("UMAP of lib_48 after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_48_after
+```
+
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_50_before <- DimPlot(seurat[, seurat$sample == "lib_50"], reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "sample")
+dp_lib_50_before <- dp_lib_50_before + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_50_before <- dp_lib_50_before + ggtitle("UMAP of lib_50 before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_50_before
+```
+
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_50_after <- DimPlot(seurat[, seurat$sample == "lib_50"], reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "sample") 
+dp_lib_50_after <- dp_lib_50_after + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_50_after <- dp_lib_50_after + ggtitle("UMAP of lib_50 after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_50_after
+```
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_52_before <- DimPlot(seurat[, seurat$sample == "lib_52"], reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "sample")
+dp_lib_52_before <- dp_lib_52_before + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_52_before <- dp_lib_52_before + ggtitle("UMAP of lib_52 before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_52_before
+```
+
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_52_after <- DimPlot(seurat[, seurat$sample == "lib_52"], reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "sample") 
+dp_lib_52_after <- dp_lib_52_after + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_52_after <- dp_lib_52_after + ggtitle("UMAP of lib_52 after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_52_after
+```
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_54_before <- DimPlot(seurat[, seurat$sample == "lib_54"], reduction = "scater_umap",  pt.size = .05, raster = FALSE, group.by = "sample")
+dp_lib_54_before <- dp_lib_54_before + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_54_before <- dp_lib_54_before + ggtitle("UMAP of lib_54 before batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_54_before
+```
+
+
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 10)
+dp_lib_54_after <- DimPlot(seurat[, seurat$sample == "lib_54"], reduction = "seurat_umap",  pt.size = .05, raster = FALSE, group.by = "sample") 
+dp_lib_54_after <- dp_lib_54_after + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp_lib_54_after <- dp_lib_54_after + ggtitle("UMAP of lib_54 after batch correction") + theme(plot.title = element_text(hjust = 0.5))
+dp_lib_54_after
+```
+
+
+### SingleR
+
+#### HumanPrimaryCellAtlasData
+
+```{r}
+hpca.hpcad <- celldex::HumanPrimaryCellAtlasData()
+```
+
+
+```{r}
+#test <- GetAssayData(seurat, assay = "RNA")
+pred.hesc.HumanPrimaryCellAtlasData <- SingleR(test = GetAssayData(seurat, assay = "originalexp") ,
+                     ref = hpca.hpcad,
+                     assay.type.test=1,
+                     assay.type.ref=1,
+                     labels = hpca.hpcad$label.main)
+```
+
+```{r}
+knitr::kable(unique(pred.hesc.HumanPrimaryCellAtlasData$labels), caption = "Cell Types found")
+```
+
+```{r}
+plotDeltaDistribution(pred.hesc.HumanPrimaryCellAtlasData, size = 0.1)
+```
+
+```{r}
+plotDeltaDistribution(pred.hesc.HumanPrimaryCellAtlasData[pred.hesc.HumanPrimaryCellAtlasData$labels == unique(pred.hesc.HumanPrimaryCellAtlasData$labels)[1],], size = 0.1)
+```
+
+```{r}
+plotDeltaDistribution(pred.hesc.HumanPrimaryCellAtlasData[pred.hesc.HumanPrimaryCellAtlasData$labels == unique(pred.hesc.HumanPrimaryCellAtlasData$labels)[2],], size = 0.1)
+```
+
+
+```{r}
+plotDeltaDistribution(pred.hesc.HumanPrimaryCellAtlasData[pred.hesc.HumanPrimaryCellAtlasData$labels == unique(pred.hesc.HumanPrimaryCellAtlasData$labels)[3],], size = 0.1)
+```
+
+
+```{r}
+plotDeltaDistribution(pred.hesc.HumanPrimaryCellAtlasData[pred.hesc.HumanPrimaryCellAtlasData$labels == unique(pred.hesc.HumanPrimaryCellAtlasData$labels)[4],], size = 0.1)
+```
+
+
+```{r}
+plotDeltaDistribution(pred.hesc.HumanPrimaryCellAtlasData[pred.hesc.HumanPrimaryCellAtlasData$labels == unique(pred.hesc.HumanPrimaryCellAtlasData$labels)[5],], size = 0.1)
+```
+
+
+```{r}
+plotDeltaDistribution(pred.hesc.HumanPrimaryCellAtlasData[pred.hesc.HumanPrimaryCellAtlasData$labels == unique(pred.hesc.HumanPrimaryCellAtlasData$labels)[6],], size = 0.1)
+```
+
+
+```{r}
+plotDeltaDistribution(pred.hesc.HumanPrimaryCellAtlasData[pred.hesc.HumanPrimaryCellAtlasData$labels == unique(pred.hesc.HumanPrimaryCellAtlasData$labels)[7],], size = 0.1)
+```
+
+
+```{r}
+plotDeltaDistribution(pred.hesc.HumanPrimaryCellAtlasData[pred.hesc.HumanPrimaryCellAtlasData$labels == unique(pred.hesc.HumanPrimaryCellAtlasData$labels)[8],], size = 0.1)
+```
+
+
+```{r}
+plotDeltaDistribution(pred.hesc.HumanPrimaryCellAtlasData[pred.hesc.HumanPrimaryCellAtlasData$labels == unique(pred.hesc.HumanPrimaryCellAtlasData$labels)[9],], size = 0.1)
+```
+
+
+```{r}
+plotDeltaDistribution(pred.hesc.HumanPrimaryCellAtlasData[pred.hesc.HumanPrimaryCellAtlasData$labels == unique(pred.hesc.HumanPrimaryCellAtlasData$labels)[10],], size = 0.1)
+```
+
+
+```{r}
+plotDeltaDistribution(pred.hesc.HumanPrimaryCellAtlasData[pred.hesc.HumanPrimaryCellAtlasData$labels == unique(pred.hesc.HumanPrimaryCellAtlasData$labels)[11],], size = 0.1)
+```
+
+
+```{r}
+plotDeltaDistribution(pred.hesc.HumanPrimaryCellAtlasData[pred.hesc.HumanPrimaryCellAtlasData$labels == unique(pred.hesc.HumanPrimaryCellAtlasData$labels)[12],], size = 0.1)
+```
+
+
+```{r}
+plotDeltaDistribution(pred.hesc.HumanPrimaryCellAtlasData[pred.hesc.HumanPrimaryCellAtlasData$labels == unique(pred.hesc.HumanPrimaryCellAtlasData$labels)[13],], size = 0.1)
+```
+
+
+```{r}
+plotDeltaDistribution(pred.hesc.HumanPrimaryCellAtlasData[pred.hesc.HumanPrimaryCellAtlasData$labels == unique(pred.hesc.HumanPrimaryCellAtlasData$labels)[14],], size = 0.1)
+```
+
+
+```{r}
+plotDeltaDistribution(pred.hesc.HumanPrimaryCellAtlasData[pred.hesc.HumanPrimaryCellAtlasData$labels == unique(pred.hesc.HumanPrimaryCellAtlasData$labels)[15],], size = 0.1)
+```
+
+
+
+
+
+
+```{r}
+lbls.keep.HumanPrimaryCellAtlasData <- table(pred.hesc.HumanPrimaryCellAtlasData$labels) > 10
+seurat$SingleR.HPCA <- ifelse(lbls.keep.HumanPrimaryCellAtlasData[pred.hesc.HumanPrimaryCellAtlasData$labels], 
+                                         pred.hesc.HumanPrimaryCellAtlasData$labels, 'Other')
+```
+
+
+```{r}
+sh01 <- plotScoreHeatmap(pred.hesc.HumanPrimaryCellAtlasData, show_colnames  = FALSE)
+#sh01 <- sh01 + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+#sh01 <- sh01 + ggtitle("seurat_umap title: lib_50") + theme(plot.title = element_text(hjust = 0.5))
+#sh01
+```
+
+```{r}
+sh02 <- plotScoreHeatmap(pred.hesc.HumanPrimaryCellAtlasData[pred.hesc.HumanPrimaryCellAtlasData$labels == unique(pred.hesc.HumanPrimaryCellAtlasData$labels)[1],], show_colnames  = FALSE)
+#sh01 <- sh01 + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+#sh01 <- sh01 + ggtitle("seurat_umap title: lib_50") + theme(plot.title = element_text(hjust = 0.5))
+#sh01
+```
+
+
+```{r}
+# all.markers <- metadata(pred.hesc.HumanPrimaryCellAtlasData)$de.genes
+# empirical.markers <- scran::findMarkers(seurat, seurat$SingleR.HPCA, direction="up")
+# collected <- list()
+# for (lab in unique(pred.hesc.HumanPrimaryCellAtlasData$labels)) {
+#     lab.markers <- unique(unlist(all.markers[[lab]]))
+#     m <- match(lab.markers, rownames(empirical.markers[[lab]]))
+#     m <- lab.markers[rank(m) <= 20]
+#     collected[[lab]] <- plotHeatmap(seurat, silent=TRUE, order_columns_by="labels", main=lab, features=m)[[4]]
+# }
+# do.call(gridExtra::grid.arrange, collected)
+```
+
+```{r}
+dp12 <- DimPlot(seurat, group.by='SingleR.HPCA', label = TRUE,label.size = 3, raster = FALSE, reduction='seurat_umap', repel = TRUE) 
+dp12 <- dp12 + ggtitle("SingleR.HPCA") + 
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  ggplot2::theme(legend.position = "none") #+ NoLegend()
+dp12
+```
+
+
+```{r}
+dp13 <- DimPlot(seurat, group.by='SingleR.HPCA', label = TRUE,label.size = 3, raster = FALSE, reduction='seurat_umap', repel = TRUE) 
+dp13 <- dp13 + guides(color = guide_legend(override.aes = list(size=4), ncol=2) )
+dp13 <- dp13 + ggtitle("SingleR.HPCA") + theme(plot.title = element_text(hjust = 0.5))
+dp13
+```
+
+
+```{r}
+ctlist <- c("B_cell", "DC", "Epithelial_cells", "Fibroblasts", "Keratinocytes", "Macrophage", "Monocyte", "Neutrophils", "NK_cell", "T_cells")
+seurat$the10 <- seurat$SingleR.HPCA
+seurat$the10 <- replace(seurat$the10, ! seurat$the10 %in% ctlist, "Other")
+```
+
+```{r}
+dp14 <- DimPlot(seurat, group.by='the10', label = TRUE,label.size = 3, raster = FALSE, reduction='seurat_umap', repel = TRUE) 
+dp14 <- dp14 + ggtitle("the10") + 
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  ggplot2::theme(legend.position = "none") #+ NoLegend()
+dp14
+```
+
+```{r}
+dp15 <- DimPlot(seurat, group.by='the10', label = TRUE,label.size = 3, raster = FALSE, reduction='seurat_umap', repel = TRUE) 
+dp15 <- dp15 + guides(color = guide_legend(override.aes = list(size=4), ncol=1) )
+dp15 <- dp15 + ggtitle("Cell type annotation") + theme(plot.title = element_text(hjust = 0.5))
+dp15
+```
+
+
+```{r}
+disease <- "PSO"
+ctseurat <- seurat[, seurat$disease == disease]
+ctseurat <- ctseurat[, ctseurat$SingleR.HPCA %in% ctlist]
+dp_pso <- DimPlot(ctseurat, 
+                  group.by='SingleR.HPCA', label = TRUE, label.size = 3, raster = FALSE, reduction='seurat_umap', repel = TRUE) 
+dp_pso <- dp_pso + guides(color = guide_legend(override.aes = list(size=4), ncol=1))
+dp_pso <- dp_pso + ggtitle(paste0("Subset SingleR.HPCA for ", disease)) + theme(plot.title = element_text(hjust = 0.5))
+dp_pso
+```
+
+```{r}
+disease <- "HS"
+ctseurat <- seurat[, seurat$disease == disease]
+ctseurat <- ctseurat[, ctseurat$SingleR.HPCA %in% ctlist]
+dp_hs <- DimPlot(ctseurat, 
+                  group.by='SingleR.HPCA', label = TRUE, label.size = 3, raster = FALSE, reduction='seurat_umap', repel = TRUE) 
+dp_hs <- dp_hs + guides(color = guide_legend(override.aes = list(size=4), ncol=1))
+dp_hs <- dp_hs + ggtitle(paste0("Subset SingleR.HPCA for ", disease)) + theme(plot.title = element_text(hjust = 0.5))
+dp_hs
+```
+
+
+```{r}
+disease <- "PPP"
+ctseurat <- seurat[, seurat$disease == disease]
+ctseurat <- ctseurat[, ctseurat$SingleR.HPCA %in% ctlist]
+dp_ppp <- DimPlot(ctseurat, 
+                  group.by='SingleR.HPCA', label = TRUE, label.size = 3, raster = FALSE, reduction='seurat_umap', repel = TRUE) 
+dp_ppp <- dp_ppp + guides(color = guide_legend(override.aes = list(size=4), ncol=1))
+dp_ppp <- dp_ppp + ggtitle(paste0("Subset SingleR.HPCA for ", disease)) + theme(plot.title = element_text(hjust = 0.5))
+dp_ppp
+```
+
+## Finding differentially expressed features (cluster biomarkers)
+
+
+```{r}
+# find markers for every cluster compared to all remaining cells, report only the positive
+# ones
+seurat.markers <- FindAllMarkers(seurat, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25, assay = "originalexp")
+```
+
+```{r}
+top20_markers <- seurat.markers %>%
+  group_by(cluster) %>%
+  slice_max(n = 20, order_by = avg_log2FC)
+```
+
+```{r}
+knitr::kable(top20_markers) %>% 
+ scroll_box(width = "600px", height = "400px")
+```
+
+
+### Visualization
+
+```{r}
+top_markers <- seurat.markers %>%
+  group_by(cluster) %>%
+  slice_max(n = 9, order_by = avg_log2FC)
+```
+
+```{r}
+fp_00 <- FeaturePlot(object = seurat, 
+            features = top_markers[top_markers$cluster == 0, "gene"]$gene, 
+            cols = c("grey", "blue"), 
+            reduction = "seurat_umap")
+fp_00
+```            
+            
+
+## Perform pseudobulking
+
+```{r}
+# pseudobulk the counts based on donor-condition-celltype
+pseudo_seurat <- AggregateExpression(seurat, assays = "originalexp", return.seurat = T, 
+                                     group.by = c("disease", "sample", "SingleR.HPCA"))
+# each 'cell' is a donor-condition-celltype pseudobulk profile
+tail(Cells(pseudo_seurat))
+pseudo_seurat$celltype.stim <- paste(pseudo_seurat$SingleR.HPCA, pseudo_seurat$disease, sep = "_")
+Idents(pseudo_seurat) <- "celltype.stim"
+```
+
+
+## Abundance
+
+```{r}
+knitr::kable(propeller(clusters = seurat$SingleR.HPCA, sample = seurat$sample, 
+          group = seurat$disease))
+```
+
+```{r}
+pctp <- plotCellTypeProps(clusters=seurat$SingleR.HPCA, sample=seurat$sample)
+pctp <- pctp + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+pctp
+```
+```{r}
+pctp_dis <- plotCellTypeProps(clusters=seurat$SingleR.HPCA, sample=seurat$disease)
+#pctp_dis <- pctp_dis + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+pctp_dis
+```
+
+```{r}
+props <- getTransformedProps(seurat$SingleR.HPCA, seurat$disease, transform="logit")
+props_counts <- as.data.frame(props$Counts)
+props_trans <- as.data.frame(props$TransformedProps)
+props_props <- as.data.frame(props$Proportions)
+setDT(props_counts)
+setDT(props_trans)
+setDT(props_props)
+```
+
+```{r}
+ctlist <- c("B_cell", "DC", "Epithelial_cells", "Fibroblasts", "Keratinocytes", "Macrophage", "Monocyte", "Neutrophils", "NK_cell", "T_cells")
+props_props_subset <- props_props[clusters %in% ctlist,][, FreqNorm := Freq/sum(Freq), by = c("sample")]
+```
+
+
+```{r}
+ggplot(props_props_subset, aes(x = sample, y = FreqNorm, fill = clusters, label = clusters)) +
+  geom_bar(stat = "identity", color = "black") +
+  geom_text_repel(size = 3, position = position_stack(vjust = 0.5), 
+                  box.padding = 0.5, 
+                  max.overlaps = Inf, 
+                  segment.curvature = -0.1, 
+                  segment.ncp = 3,
+                  segment.angle = 20) +
+  ggtitle("Cell Abundance") + 
+  theme(plot.title = element_text(hjust = 0.5)) + ggplot2::theme(legend.position = "none")
+```
+
+### Abundance the10
+
+
+```{r}
+props_the10 <- getTransformedProps(seurat$the10, seurat$disease, transform="logit")
+props_counts_the10 <- as.data.frame(props_the10$Counts)
+props_trans_the10 <- as.data.frame(props_the10$TransformedProps)
+props_props_the10 <- as.data.frame(props_the10$Proportions)
+setDT(props_counts_the10)
+setDT(props_trans_the10)
+setDT(props_props_the10)
+```
+
+```{r}
+ggplot(props_props_the10, aes(x = sample, y = Freq, fill = clusters, label = clusters)) +
+  geom_bar(stat = "identity", color = "black") +
+  geom_text_repel(size = 3, position = position_stack(vjust = 0.5), 
+                  box.padding = 0.5, 
+                  max.overlaps = Inf, 
+                  segment.curvature = -0.1, 
+                  segment.ncp = 3,
+                  segment.angle = 20) +
+  ggtitle("Cell Abundance") + 
+  theme(plot.title = element_text(hjust = 0.5)) #+ ggplot2::theme(legend.position = "none")
+```
+
+### Abundance HS vs PPP
+
+```{r}
+disease_list <- c('HS', 'PPP')
+
+ggplot(props_props[sample %in% disease_list, ], aes(x = sample, y = Freq, fill = clusters, label = clusters)) +
+  geom_bar(stat = "identity", color = "black") +
+  geom_text_repel(size = 3, position = position_stack(vjust = 0.5), box.padding = 0.5, max.overlaps = Inf, segment.curvature = -0.1, segment.ncp = 3,segment.angle = 20) +
+  ggtitle(paste0("Cell Abundance for ", paste( unlist(disease_list), collapse=' vs '))) + 
+  theme(plot.title = element_text(hjust = 0.5)) + ggplot2::theme(legend.position = "none")
+```
+
+```{r}
+ggplot(props_props_subset[sample %in% disease_list, ], aes(x = sample, y = FreqNorm, fill = clusters, label = clusters)) +
+  geom_bar(stat = "identity", color = "black") +
+  geom_text_repel(size = 3, 
+                  position = position_stack(vjust = 0.5), 
+                  box.padding = 0.5, max.overlaps = Inf, 
+                  segment.curvature = -0.1, 
+                  segment.ncp = 3,
+                  segment.angle = 20) + 
+  ggtitle(paste0("Subset of Cell Abundance for ", paste( unlist(disease_list), collapse=' vs '))) + 
+  theme(plot.title = element_text(hjust = 0.5)) + ggplot2::theme(legend.position = "none")
+```
+
+
+### Abundance PSO vs PPP
+
+
+```{r}
+disease_list <- c('PSO', 'PPP')
+
+ggplot(props_props[sample %in% disease_list, ], aes(x = sample, y = Freq, fill = clusters, label = clusters)) +
+  geom_bar(stat = "identity", color = "black") +
+  geom_text_repel(size = 3, position = position_stack(vjust = 0.5), box.padding = 0.5, max.overlaps = Inf, segment.curvature = -0.1, segment.ncp = 3,segment.angle = 20) +
+  ggtitle(paste0("Cell Abundance for ", paste( unlist(disease_list), collapse=' vs '))) + 
+  theme(plot.title = element_text(hjust = 0.5)) + ggplot2::theme(legend.position = "none")
+```
+
+```{r}
+ggplot(props_props_subset[sample %in% disease_list, ], aes(x = sample, y = FreqNorm, fill = clusters, label = clusters)) +
+  geom_bar(stat = "identity", color = "black") +
+  geom_text_repel(size = 3, 
+                  position = position_stack(vjust = 0.5), 
+                  box.padding = 0.5, max.overlaps = Inf, 
+                  segment.curvature = -0.1, 
+                  segment.ncp = 3,
+                  segment.angle = 20) + 
+  ggtitle(paste0("Subset of Cell Abundance for ", paste( unlist(disease_list), collapse=' vs '))) + 
+  theme(plot.title = element_text(hjust = 0.5)) + ggplot2::theme(legend.position = "none")
+```
+
+
+
+### Abundance PSO vs HS
+
+
+```{r}
+disease_list <- c('PSO', 'HS')
+
+ggplot(props_props[sample %in% disease_list, ], aes(x = sample, y = Freq, fill = clusters, label = clusters)) +
+  geom_bar(stat = "identity", color = "black") +
+  geom_text_repel(size = 3, position = position_stack(vjust = 0.5), box.padding = 0.5, max.overlaps = Inf, segment.curvature = -0.1, segment.ncp = 3,segment.angle = 20) +
+  ggtitle(paste0("Cell Abundance for ", paste( unlist(disease_list), collapse=' vs '))) + 
+  theme(plot.title = element_text(hjust = 0.5)) + ggplot2::theme(legend.position = "none")
+```
+
+```{r}
+ggplot(props_props_subset[sample %in% disease_list, ], aes(x = sample, y = FreqNorm, fill = clusters, label = clusters)) +
+  geom_bar(stat = "identity", color = "black") +
+  geom_text_repel(size = 3, 
+                  position = position_stack(vjust = 0.5), 
+                  box.padding = 0.5, max.overlaps = Inf, 
+                  segment.curvature = -0.1, 
+                  segment.ncp = 3,
+                  segment.angle = 20) + 
+  ggtitle(paste0("Subset of Cell Abundance for ", paste( unlist(disease_list), collapse=' vs '))) + 
+  theme(plot.title = element_text(hjust = 0.5)) + ggplot2::theme(legend.position = "none")
+```
+
+### Milo
+
+```{r}
+# library(miloR)
+# pbmc_small_sce <- as.SingleCellExperiment(seurat)
+# pbmc_small_milo <- Milo(pbmc_small_sce)
+# pbmc_small_milo <- buildGraph(pbmc_small_milo, k = 30, d = 30, reduced.dim = "seurat_umap")
+```
+
+```{r}
+# pbmc_small_milo <- makeNhoods(pbmc_small_milo, prop = 0.1, k = 30, d=30, refined = TRUE, reduced_dims = "seurat_umap")
+# plotNhoodSizeHist(pbmc_small_milo)
+# pbmc_small_milo <- countCells(pbmc_small_milo, meta.data = as.data.frame(colData(pbmc_small_milo)), sample="sample")
+
+```
+
+
+## DEG caca 
+
+```{r}
+suppressPackageStartupMessages({
+  library(rlang)
+})
+
+DoMultiBarHeatmap <- function (object, 
+                               features = NULL, 
+                               cells = NULL, 
+                               group.by = "ident", 
+                               additional.group.by = NULL, 
+                               additional.group.sort.by = NULL, 
+                               cols.use = NULL,
+                               group.bar = TRUE, 
+                               disp.min = -2.5, 
+                               disp.max = NULL, 
+                               slot = "scale.data", 
+                               assay = NULL, 
+                               label = TRUE, 
+                               size = 5.5, 
+                               hjust = 0, 
+                               angle = 45, 
+                               raster = TRUE, 
+                               draw.lines = TRUE, 
+                               lines.width = NULL, 
+                               group.bar.height = 0.02, 
+                               combine = TRUE) 
+{
+  cells <- cells %||% colnames(x = object)
+  if (is.numeric(x = cells)) {
+    cells <- colnames(x = object)[cells]
+  }
+  assay <- assay %||% DefaultAssay(object = object)
+  DefaultAssay(object = object) <- assay
+  features <- features %||% VariableFeatures(object = object)
+  ## Why reverse???
+  features <- rev(x = unique(x = features))
+  disp.max <- disp.max %||% ifelse(test = slot == "scale.data", 
+                                   yes = 2.5, no = 6)
+  possible.features <- rownames(x = GetAssayData(object = object, 
+                                                 slot = slot))
+  if (any(!features %in% possible.features)) {
+    bad.features <- features[!features %in% possible.features]
+    features <- features[features %in% possible.features]
+    if (length(x = features) == 0) {
+      stop("No requested features found in the ", slot, 
+           " slot for the ", assay, " assay.")
+    }
+    warning("The following features were omitted as they were not found in the ", 
+            slot, " slot for the ", assay, " assay: ", paste(bad.features, 
+                                                             collapse = ", "))
+  }
+  
+  if (!is.null(additional.group.sort.by)) {
+    if (any(!additional.group.sort.by %in% additional.group.by)) {
+      bad.sorts <- additional.group.sort.by[!additional.group.sort.by %in% additional.group.by]
+      additional.group.sort.by <- additional.group.sort.by[additional.group.sort.by %in% additional.group.by]
+      if (length(x = bad.sorts) > 0) {
+        warning("The following additional sorts were omitted as they were not a subset of additional.group.by : ", 
+                paste(bad.sorts, collapse = ", "))
+      }
+    }
+  }
+  
+  data <- as.data.frame(x = as.matrix(x = t(x = GetAssayData(object = object, 
+                                                             slot = slot)[features, cells, drop = FALSE])))
+  
+  object <- suppressMessages(expr = StashIdent(object = object, 
+                                               save.name = "ident"))
+  group.by <- group.by %||% "ident"
+  groups.use <- object[[c(group.by, additional.group.by[!additional.group.by %in% group.by])]][cells, , drop = FALSE]
+  plots <- list()
+  for (i in group.by) {
+    data.group <- data
+    if (!is_null(additional.group.by)) {
+      additional.group.use <- additional.group.by[additional.group.by!=i]  
+      if (!is_null(additional.group.sort.by)){
+        additional.sort.use = additional.group.sort.by[additional.group.sort.by != i]  
+      } else {
+        additional.sort.use = NULL
+      }
+    } else {
+      additional.group.use = NULL
+      additional.sort.use = NULL
+    }
+    
+    group.use <- groups.use[, c(i, additional.group.use), drop = FALSE]
+    
+    for(colname in colnames(group.use)){
+      if (!is.factor(x = group.use[[colname]])) {
+        group.use[[colname]] <- factor(x = group.use[[colname]])
+      }  
+    }
+    
+    if (draw.lines) {
+      lines.width <- lines.width %||% ceiling(x = nrow(x = data.group) * 
+                                                0.0025)
+      placeholder.cells <- sapply(X = 1:(length(x = levels(x = group.use[[i]])) * 
+                                           lines.width), FUN = function(x) {
+                                             return(Seurat:::RandomName(length = 20))
+                                           })
+      placeholder.groups <- data.frame(rep(x = levels(x = group.use[[i]]), times = lines.width))
+      group.levels <- list()
+      group.levels[[i]] = levels(x = group.use[[i]])
+      for (j in additional.group.use) {
+        group.levels[[j]] <- levels(x = group.use[[j]])
+        placeholder.groups[[j]] = NA
+      }
+      
+      colnames(placeholder.groups) <- colnames(group.use)
+      rownames(placeholder.groups) <- placeholder.cells
+      
+      group.use <- sapply(group.use, as.vector)
+      rownames(x = group.use) <- cells
+      
+      group.use <- rbind(group.use, placeholder.groups)
+      
+      for (j in names(group.levels)) {
+        group.use[[j]] <- factor(x = group.use[[j]], levels = group.levels[[j]])
+      }
+      
+      na.data.group <- matrix(data = NA, nrow = length(x = placeholder.cells), 
+                              ncol = ncol(x = data.group), dimnames = list(placeholder.cells, 
+                                                                           colnames(x = data.group)))
+      data.group <- rbind(data.group, na.data.group)
+    }
+    
+    order_expr <- paste0('order(', paste(c(i, additional.sort.use), collapse=','), ')')
+    group.use = with(group.use, group.use[eval(parse(text=order_expr)), , drop=F])
+    
+    plot <- Seurat:::SingleRasterMap(data = data.group, raster = raster, 
+                                     disp.min = disp.min, disp.max = disp.max, feature.order = features, 
+                                     cell.order = rownames(x = group.use), group.by = group.use[[i]])
+    
+    if (group.bar) {
+      pbuild <- ggplot_build(plot = plot)
+      group.use2 <- group.use
+      cols <- list()
+      na.group <- Seurat:::RandomName(length = 20)
+      for (colname in rev(x = colnames(group.use2))) {
+        if (colname == i) {
+          colid = paste0('Identity (', colname, ')')
+        } else {
+          colid = colname
+        }
+        
+        # Default
+        cols[[colname]] <- c(scales::hue_pal()(length(x = levels(x = group.use[[colname]]))))  
+        
+        #Overwrite if better value is provided
+        if (!is_null(cols.use[[colname]])) {
+          req_length = length(x = levels(group.use))
+          if (length(cols.use[[colname]]) < req_length){
+            warning("Cannot use provided colors for ", colname, " since there aren't enough colors.")
+          } else {
+            if (!is_null(names(cols.use[[colname]]))) {
+              if (all(levels(group.use[[colname]]) %in% names(cols.use[[colname]]))) {
+                cols[[colname]] <- as.vector(cols.use[[colname]][levels(group.use[[colname]])])
+              } else {
+                warning("Cannot use provided colors for ", colname, " since all levels (", paste(levels(group.use[[colname]]), collapse=","), ") are not represented.")
+              }
+            } else {
+              cols[[colname]] <- as.vector(cols.use[[colname]])[c(1:length(x = levels(x = group.use[[colname]])))]
+            }
+          }
+        }
+        
+        # Add white if there's lines
+        if (draw.lines) {
+          levels(x = group.use2[[colname]]) <- c(levels(x = group.use2[[colname]]), na.group)  
+          group.use2[placeholder.cells, colname] <- na.group
+          cols[[colname]] <- c(cols[[colname]], "#FFFFFF")
+        }
+        names(x = cols[[colname]]) <- levels(x = group.use2[[colname]])
+        
+        y.range <- diff(x = pbuild$layout$panel_params[[1]]$y.range)
+        y.pos <- max(pbuild$layout$panel_params[[1]]$y.range) + y.range * 0.015
+        y.max <- y.pos + group.bar.height * y.range
+        pbuild$layout$panel_params[[1]]$y.range <- c(pbuild$layout$panel_params[[1]]$y.range[1], y.max)
+        
+        plot <- suppressMessages(plot + 
+                                   annotation_raster(raster = t(x = cols[[colname]][group.use2[[colname]]]),  xmin = -Inf, xmax = Inf, ymin = y.pos, ymax = y.max) + 
+                                   annotation_custom(grob = grid::textGrob(label = colid, hjust = 0, gp = gpar(cex = 0.75)), ymin = mean(c(y.pos, y.max)), ymax = mean(c(y.pos, y.max)), xmin = Inf, xmax = Inf) +
+                                   coord_cartesian(ylim = c(0, y.max), clip = "off")) 
+        
+        if ((colname == i) && label) {
+          x.max <- max(pbuild$layout$panel_params[[1]]$x.range)
+          x.divs <- pbuild$layout$panel_params[[1]]$x.major
+          group.use$x <- x.divs
+          label.x.pos <- tapply(X = group.use$x, INDEX = group.use[[colname]],
+                                FUN = median) * x.max
+          label.x.pos <- data.frame(group = names(x = label.x.pos), 
+                                    label.x.pos)
+          plot <- plot + geom_text(stat = "identity", 
+                                   data = label.x.pos, aes_string(label = "group", 
+                                                                  x = "label.x.pos"), y = y.max + y.max * 
+                                     0.03 * 0.5, angle = angle, hjust = hjust, 
+                                   size = size)
+          plot <- suppressMessages(plot + coord_cartesian(ylim = c(0, 
+                                                                   y.max + y.max * 0.002 * max(nchar(x = levels(x = group.use[[colname]]))) * 
+                                                                     size), clip = "off"))
+        }
+      }
+    }
+    plot <- plot + theme(line = element_blank())
+    plots[[i]] <- plot
+  }
+  if (combine) {
+    plots <- CombinePlots(plots = plots)
+  }
+  return(plots)
+}
+```
+
+
+```{r}
+#DoHeatmap(seurat, features = c("IL36A", "IL36G","CXCL2"))
+DoMultiBarHeatmap(seurat, 
+                  assay = 'originalexp', 
+                  features = c("IL36G","CXCL2"), 
+                  group.by='disease', 
+                  additional.group.by = 'SingleR.HPCA')
+#Idents(seurat)
+```
+
+
+
+
+## DE : Keratinocytes HS vs PSO
+
+```{r}
+dect <- "Keratinocytes"
+ident_1 <- "_HS"
+ident_2 <- "_PSO"
+```
+
+### Perform DE analysis within the same cell type across HS vs PSO
+
+
+
+```{r}
+seurat$celltype.stim <- paste(seurat$SingleR.HPCA, seurat$disease, sep = "_")
+Idents(seurat) <- "celltype.stim"
+```
+
+```{r}
+mono.de <- FindMarkers(seurat, 
+                       ident.1 = paste0(dect, ident_1), ident.2 = paste0(dect, ident_2), 
+                       verbose = FALSE)
+head(mono.de, n = config$nb_top_markers_de)
+```
+
+
+```{r}
+bulk.mono.de <- FindMarkers(object = pseudo_seurat, 
+                         ident.1 = paste0(dect, ident_1), ident.2 = paste0(dect, ident_2),
+                         test.use = "DESeq2")
+head(bulk.mono.de, n = config$nb_top_markers_de)
+```
+
+### compare the DE P-values between the single-cell level and the pseudobulk level results
+
+```{r}
+names(bulk.mono.de) <- paste0(names(bulk.mono.de), ".bulk")
+bulk.mono.de$gene <- rownames(bulk.mono.de)
+
+names(mono.de) <- paste0(names(mono.de), ".sc")
+mono.de$gene <- rownames(mono.de)
+
+merge_dat <- merge(mono.de, bulk.mono.de, by = "gene")
+merge_dat <- merge_dat[order(merge_dat$p_val.bulk), ]
+
+# Number of genes that are marginally significant in both; marginally significant only in bulk; and marginally significant only in single-cell
+common <- merge_dat$gene[which(merge_dat$p_val.bulk < 0.05 & 
+                                merge_dat$p_val.sc < 0.05)]
+only_sc <- merge_dat$gene[which(merge_dat$p_val.bulk > 0.05 & 
+                                  merge_dat$p_val.sc < 0.05)]
+only_bulk <- merge_dat$gene[which(merge_dat$p_val.bulk < 0.05 & 
+                                    merge_dat$p_val.sc > 0.05)]
+print(paste0('# Common: ',length(common)))
+```
+
+
+```{r}
+print(paste0('# Only in single-cell: ',length(only_sc)))
+```
+
+
+```{r}
+print(paste0('# Only in bulk: ',length(only_bulk)))
+```
+
+
+### examine the top genes that are differentially expressed in both analyses.
+
+
+```{r}
+# create a new column to annotate sample-condition-celltype in the single-cell dataset
+seurat$donor_id.stim <- paste0(seurat$disease, "-", seurat$sample)
+
+# generate violin plot 
+Idents(seurat) <- "celltype.stim"
+print(merge_dat[merge_dat$gene%in%common[1:2], c('gene','p_val.sc','p_val.bulk')])
+```
+
+```{r}
+vln02 <- VlnPlot(pseudo_seurat, features = common[1:2], 
+                 idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+                 group.by = "disease")
+vln02 + 
+  plot_annotation(title = 'Top 2 DEG for Keratinocytes in HS vs PSO',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+
+```{r}
+vln03 <- VlnPlot(seurat, features = common[1:2], 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "donor_id.stim", ncol = 1)
+vln03
+```
+
+
+```{r}
+vln04 <- VlnPlot(pseudo_seurat, features = common[1:2], 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease")
+vln04
+```
+
+
+
+### examine examples of genes that are only DE under the single-cell analysis.
+
+```{r}
+head(only_sc)
+```
+
+```{r}
+print(merge_dat[merge_dat$gene %in% only_sc[1:2], c('gene','p_val.sc','p_val.bulk')])
+```
+
+```{r}
+VlnPlot(pseudo_seurat, features <- only_sc[1:2], 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") 
+```
+
+
+
+
+### IL36A Pathway analysis HS vs PSO
+
+
+
+```{r}
+vp <- VlnPlot(pseudo_seurat, features = c("IL36A"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") 
+vp + 
+  plot_annotation(title = 'IL36A expression for Keratinocytes (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+```{r}
+vp <- VlnPlot(pseudo_seurat, features = c("IL1B"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") 
+vp + 
+  plot_annotation(title = 'IL1-b expression for Keratinocytes (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+```{r}
+vp <- VlnPlot(pseudo_seurat, features = c("TNF"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") 
+vp + 
+  plot_annotation(title = 'TNF-alpha expression for Keratinocytes (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+```{r}
+vp <- VlnPlot(pseudo_seurat, features = c("NFKB1"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") 
+vp + 
+  plot_annotation(title = 'NFKb expression for Keratinocytes (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+```{r}
+vp <- VlnPlot(pseudo_seurat, features = c("IL17A"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") 
+vp + 
+  plot_annotation(title = 'IL17A expression for Keratinocytes (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+
+### IL36G Pathway analysis HS vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36G"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36G expression for Keratinocytes (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36B Pathway analysis HS vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36B"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36B expression for Keratinocytes (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36RN Pathway analysis HS vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36RN"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36RN expression for Keratinocytes (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+## DE : Keratinocytes PPP vs PSO
+
+
+### Perform DE analysis within the same cell type across HS vs PSO
+
+```{r}
+dect <- "Keratinocytes"
+ident_1 <- "_PPP"
+ident_2 <- "_PSO"
+```
+
+
+```{r}
+seurat$celltype.stim <- paste(seurat$SingleR.HPCA, seurat$disease, sep = "_")
+Idents(seurat) <- "celltype.stim"
+```
+
+```{r}
+mono.de <- FindMarkers(seurat, 
+                       ident.1 = paste0(dect, ident_1), ident.2 = paste0(dect, ident_2), 
+                       verbose = FALSE)
+head(mono.de, n = config$nb_top_markers_de)
+```
+
+
+```{r}
+bulk.mono.de <- FindMarkers(object = pseudo_seurat, 
+                         ident.1 = paste0(dect, ident_1), ident.2 = paste0(dect, ident_2),
+                         test.use = "DESeq2")
+head(bulk.mono.de, n = config$nb_top_markers_de)
+```
+
+### compare the DE P-values between the single-cell level and the pseudobulk level results
+
+```{r}
+names(bulk.mono.de) <- paste0(names(bulk.mono.de), ".bulk")
+bulk.mono.de$gene <- rownames(bulk.mono.de)
+
+names(mono.de) <- paste0(names(mono.de), ".sc")
+mono.de$gene <- rownames(mono.de)
+
+merge_dat <- merge(mono.de, bulk.mono.de, by = "gene")
+merge_dat <- merge_dat[order(merge_dat$p_val.bulk), ]
+
+# Number of genes that are marginally significant in both; marginally significant only in bulk; and marginally significant only in single-cell
+common <- merge_dat$gene[which(merge_dat$p_val.bulk < 0.05 & 
+                                merge_dat$p_val.sc < 0.05)]
+only_sc <- merge_dat$gene[which(merge_dat$p_val.bulk > 0.05 & 
+                                  merge_dat$p_val.sc < 0.05)]
+only_bulk <- merge_dat$gene[which(merge_dat$p_val.bulk < 0.05 & 
+                                    merge_dat$p_val.sc > 0.05)]
+print(paste0('# Common: ',length(common)))
+```
+
+
+```{r}
+print(paste0('# Only in single-cell: ',length(only_sc)))
+```
+
+
+```{r}
+print(paste0('# Only in bulk: ',length(only_bulk)))
+```
+
+
+### examine the top genes that are differentially expressed in both analyses.
+
+
+```{r}
+# create a new column to annotate sample-condition-celltype in the single-cell dataset
+seurat$donor_id.stim <- paste0(seurat$disease, "-", seurat$sample)
+
+# generate violin plot 
+Idents(seurat) <- "celltype.stim"
+print(merge_dat[merge_dat$gene%in%common[1:2], c('gene','p_val.sc','p_val.bulk')])
+```
+
+```{r}
+vln02 <- VlnPlot(pseudo_seurat, features = common[1:2], 
+                 idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+                 group.by = "disease")
+vln02
+```
+
+
+```{r}
+vln03 <- VlnPlot(seurat, features = common[1:2], 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "donor_id.stim", ncol = 1)
+vln03
+```
+
+
+```{r}
+vln04 <- VlnPlot(pseudo_seurat, features = common[1:2], 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease")
+vln04
+```
+
+
+
+### examine examples of genes that are only DE under the single-cell analysis.
+
+```{r}
+head(only_sc)
+```
+
+```{r}
+print(merge_dat[merge_dat$gene %in% only_sc[1:2], c('gene','p_val.sc','p_val.bulk')])
+```
+
+```{r}
+VlnPlot(pseudo_seurat, features <- only_sc[1:2], 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") 
+```
+
+
+
+
+### IL36A Pathway analysis PPP vs PSO
+
+
+
+```{r}
+vp <- VlnPlot(pseudo_seurat, features = c("IL36A"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") 
+vp + 
+  plot_annotation(title = 'IL36A expression for Keratinocytes (PPP vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36G Pathway analysis PPP vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36G"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36G expression for Keratinocytes (PPP vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36B Pathway analysis PPP vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36B"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36B expression for Keratinocytes (PPP vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36RN Pathway analysis PPP vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36RN"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36RN expression for Keratinocytes (PPP vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+
+## DE : Macrophage HS vs PSO
+
+```{r}
+dect <- "Macrophage"
+ident_1 <- "_HS"
+ident_2 <- "_PSO"
+```
+
+### Perform DE analysis within the same cell type across conditions
+
+```{r}
+seurat$celltype.stim <- paste(seurat$SingleR.HPCA, seurat$disease, sep = "_")
+Idents(seurat) <- "celltype.stim"
+```
+
+```{r}
+mono.de <- FindMarkers(seurat, 
+                       ident.1 = paste0(dect, ident_1), ident.2 = paste0(dect, ident_2), 
+                       verbose = FALSE)
+head(mono.de, n = config$nb_top_markers_de)
+```
+
+
+```{r}
+bulk.mono.de <- FindMarkers(object = pseudo_seurat, 
+                         ident.1 = paste0(dect, ident_1), ident.2 = paste0(dect, ident_2),
+                         test.use = "DESeq2")
+head(bulk.mono.de, n = config$nb_top_markers_de)
+```
+
+### compare the DE P-values between the single-cell level and the pseudobulk level results
+
+```{r}
+names(bulk.mono.de) <- paste0(names(bulk.mono.de), ".bulk")
+bulk.mono.de$gene <- rownames(bulk.mono.de)
+
+names(mono.de) <- paste0(names(mono.de), ".sc")
+mono.de$gene <- rownames(mono.de)
+
+merge_dat <- merge(mono.de, bulk.mono.de, by = "gene")
+merge_dat <- merge_dat[order(merge_dat$p_val.bulk), ]
+
+# Number of genes that are marginally significant in both; marginally significant only in bulk; and marginally significant only in single-cell
+common <- merge_dat$gene[which(merge_dat$p_val.bulk < 0.05 & 
+                                merge_dat$p_val.sc < 0.05)]
+only_sc <- merge_dat$gene[which(merge_dat$p_val.bulk > 0.05 & 
+                                  merge_dat$p_val.sc < 0.05)]
+only_bulk <- merge_dat$gene[which(merge_dat$p_val.bulk < 0.05 & 
+                                    merge_dat$p_val.sc > 0.05)]
+print(paste0('# Common: ',length(common)))
+```
+
+
+```{r}
+print(paste0('# Only in single-cell: ',length(only_sc)))
+```
+
+
+```{r}
+print(paste0('# Only in bulk: ',length(only_bulk)))
+```
+
+
+### examine the top genes that are differentially expressed in both analyses.
+
+
+```{r}
+# create a new column to annotate sample-condition-celltype in the single-cell dataset
+seurat$donor_id.stim <- paste0(seurat$disease, "-", seurat$sample)
+
+# generate violin plot 
+Idents(seurat) <- "celltype.stim"
+print(merge_dat[merge_dat$gene%in%common[1:2], c('gene','p_val.sc','p_val.bulk')])
+```
+
+```{r}
+VlnPlot(pseudo_seurat, features = common[1:2], 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") 
+```
+
+
+
+```{r}
+VlnPlot(seurat, features = common[1:2], 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "donor_id.stim", ncol = 1) 
+```
+
+### examine examples of genes that are only DE under the single-cell analysis.
+
+
+```{r}
+print(merge_dat[merge_dat$gene %in% only_sc[1:2], c('gene','p_val.sc','p_val.bulk')])
+```
+
+```{r}
+VlnPlot(pseudo_seurat, features <- only_sc[1:2], 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") 
+```
+
+
+
+### IL36A Pathway analysis HS vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36A"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36A expression for Macrophages (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36G Pathway analysis HS vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36G"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36G expression for Macrophages (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36B Pathway analysis HS vs PSO
+
+
+```{r}
+VlnPlot(seurat, features = c("IL36B"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36B expression for Macrophages (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36B"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36B expression for Keratinocytes (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36RN Pathway analysis HS vs PSO
+
+
+```{r}
+VlnPlot(seurat, features = c("IL36RN"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36RN expression for Macrophages (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36RN"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") 
+```
+
+
+## DE : Macrophage PPP vs PSO
+
+```{r}
+dect <- "Macrophage"
+ident_1 <- "_PPP"
+ident_2 <- "_PSO"
+```
+
+### Perform DE analysis within the same cell type across conditions
+
+```{r}
+seurat$celltype.stim <- paste(seurat$SingleR.HPCA, seurat$disease, sep = "_")
+Idents(seurat) <- "celltype.stim"
+```
+
+```{r}
+mono.de <- FindMarkers(seurat, 
+                       ident.1 = paste0(dect, ident_1), ident.2 = paste0(dect, ident_2), 
+                       verbose = FALSE)
+head(mono.de, n = config$nb_top_markers_de)
+```
+
+
+```{r}
+bulk.mono.de <- FindMarkers(object = pseudo_seurat, 
+                         ident.1 = paste0(dect, ident_1), ident.2 = paste0(dect, ident_2),
+                         test.use = "DESeq2")
+head(bulk.mono.de, n = config$nb_top_markers_de)
+```
+
+### compare the DE P-values between the single-cell level and the pseudobulk level results
+
+```{r}
+names(bulk.mono.de) <- paste0(names(bulk.mono.de), ".bulk")
+bulk.mono.de$gene <- rownames(bulk.mono.de)
+
+names(mono.de) <- paste0(names(mono.de), ".sc")
+mono.de$gene <- rownames(mono.de)
+
+merge_dat <- merge(mono.de, bulk.mono.de, by = "gene")
+merge_dat <- merge_dat[order(merge_dat$p_val.bulk), ]
+
+# Number of genes that are marginally significant in both; marginally significant only in bulk; and marginally significant only in single-cell
+common <- merge_dat$gene[which(merge_dat$p_val.bulk < 0.05 & 
+                                merge_dat$p_val.sc < 0.05)]
+only_sc <- merge_dat$gene[which(merge_dat$p_val.bulk > 0.05 & 
+                                  merge_dat$p_val.sc < 0.05)]
+only_bulk <- merge_dat$gene[which(merge_dat$p_val.bulk < 0.05 & 
+                                    merge_dat$p_val.sc > 0.05)]
+print(paste0('# Common: ',length(common)))
+```
+
+
+```{r}
+print(paste0('# Only in single-cell: ',length(only_sc)))
+```
+
+
+```{r}
+print(paste0('# Only in bulk: ',length(only_bulk)))
+```
+
+
+### examine the top genes that are differentially expressed in both analyses.
+
+
+```{r}
+# create a new column to annotate sample-condition-celltype in the single-cell dataset
+seurat$donor_id.stim <- paste0(seurat$disease, "-", seurat$sample)
+
+# generate violin plot 
+Idents(seurat) <- "celltype.stim"
+print(merge_dat[merge_dat$gene%in%common[1:2], c('gene','p_val.sc','p_val.bulk')])
+```
+
+```{r}
+VlnPlot(pseudo_seurat, features = common[1:2], 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") 
+```
+
+
+
+```{r}
+VlnPlot(seurat, features = common[1:2], 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "donor_id.stim", ncol = 1) 
+```
+
+### examine examples of genes that are only DE under the single-cell analysis.
+
+
+```{r}
+print(merge_dat[merge_dat$gene %in% only_sc[1:2], c('gene','p_val.sc','p_val.bulk')])
+```
+
+```{r}
+VlnPlot(pseudo_seurat, features <- only_sc[1:2], 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") 
+```
+
+
+
+### IL36A Pathway analysis PPP vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36A"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease")  + 
+  plot_annotation(title = 'IL36A expression for Macrophages (PPP vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36G Pathway analysis PPP vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36G"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease")  + 
+  plot_annotation(title = 'IL36G expression for Macrophages (PPP vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36B Pathway analysis PPP vs PSO
+
+
+```{r}
+VlnPlot(seurat, features = c("IL36B"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease")  + 
+  plot_annotation(title = 'IL36B expression for Macrophages (PPP vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36B"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") 
+```
+
+### IL36RN Pathway analysis PPP vs PSO
+
+
+```{r}
+VlnPlot(seurat, features = c("IL36RN"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease")  + 
+  plot_annotation(title = 'IL36RN expression for Macrophages (PPP vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36RN"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") 
+```
+
+
+
+## DE : Dendritic cells HS vs PSO
+
+```{r}
+dect <- "DC"
+ident_1 <- "_HS"
+ident_2 <- "_PSO"
+```
+
+### Perform DE analysis within the same cell type across conditions
+
+```{r}
+seurat$celltype.stim <- paste(seurat$SingleR.HPCA, seurat$disease, sep = "_")
+Idents(seurat) <- "celltype.stim"
+```
+
+```{r}
+mono.de <- FindMarkers(seurat, 
+                       ident.1 = paste0(dect, ident_1), ident.2 = paste0(dect, ident_2), 
+                       verbose = FALSE)
+head(mono.de, n = config$nb_top_markers_de)
+```
+
+
+```{r}
+bulk.mono.de <- FindMarkers(object = pseudo_seurat, 
+                         ident.1 = paste0(dect, ident_1), ident.2 = paste0(dect, ident_2),
+                         test.use = "DESeq2")
+head(bulk.mono.de, n = config$nb_top_markers_de)
+```
+
+### compare the DE P-values between the single-cell level and the pseudobulk level results
+
+```{r}
+names(bulk.mono.de) <- paste0(names(bulk.mono.de), ".bulk")
+bulk.mono.de$gene <- rownames(bulk.mono.de)
+
+names(mono.de) <- paste0(names(mono.de), ".sc")
+mono.de$gene <- rownames(mono.de)
+
+merge_dat <- merge(mono.de, bulk.mono.de, by = "gene")
+merge_dat <- merge_dat[order(merge_dat$p_val.bulk), ]
+
+# Number of genes that are marginally significant in both; marginally significant only in bulk; and marginally significant only in single-cell
+common <- merge_dat$gene[which(merge_dat$p_val.bulk < 0.05 & 
+                                merge_dat$p_val.sc < 0.05)]
+only_sc <- merge_dat$gene[which(merge_dat$p_val.bulk > 0.05 & 
+                                  merge_dat$p_val.sc < 0.05)]
+only_bulk <- merge_dat$gene[which(merge_dat$p_val.bulk < 0.05 & 
+                                    merge_dat$p_val.sc > 0.05)]
+print(paste0('# Common: ',length(common)))
+```
+
+
+```{r}
+print(paste0('# Only in single-cell: ',length(only_sc)))
+```
+
+
+```{r}
+print(paste0('# Only in bulk: ',length(only_bulk)))
+```
+
+
+### examine the top genes that are differentially expressed in both analyses.
+
+
+```{r}
+# create a new column to annotate sample-condition-celltype in the single-cell dataset
+seurat$donor_id.stim <- paste0(seurat$disease, "-", seurat$sample)
+
+# generate violin plot 
+Idents(seurat) <- "celltype.stim"
+print(merge_dat[merge_dat$gene%in%common[1:2], c('gene','p_val.sc','p_val.bulk')])
+```
+
+```{r}
+VlnPlot(pseudo_seurat, features = common[1:2], 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") 
+```
+
+
+
+```{r}
+VlnPlot(seurat, features = common[1:2], 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "donor_id.stim", ncol = 1) 
+```
+
+### examine examples of genes that are only DE under the single-cell analysis.
+
+
+```{r}
+print(merge_dat[merge_dat$gene %in% only_sc[1:2], c('gene','p_val.sc','p_val.bulk')])
+```
+
+```{r}
+VlnPlot(pseudo_seurat, features <- only_sc[1:2], 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") 
+```
+
+
+
+### IL36A Pathway analysis HS vs PSO
+
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36A"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease")  + 
+  plot_annotation(title = 'IL36A expression for DC (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36G Pathway analysis HS vs PSO
+
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36G"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease")   + 
+  plot_annotation(title = 'IL36G expression for DC (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36B Pathway analysis HS vs PSO
+
+
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36B"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36B expression for DC (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36RN Pathway analysis HS vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36RN"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36RN expression for DC (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36RN"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") 
+```
+
+
+
+## DE : Dendritic cells PPP vs PSO
+
+```{r}
+dect <- "DC"
+ident_1 <- "_PPP"
+ident_2 <- "_PSO"
+```
+
+### Perform DE analysis within the same cell type across conditions
+
+```{r}
+seurat$celltype.stim <- paste(seurat$SingleR.HPCA, seurat$disease, sep = "_")
+Idents(seurat) <- "celltype.stim"
+```
+
+```{r}
+mono.de <- FindMarkers(seurat, 
+                       ident.1 = paste0(dect, ident_1), ident.2 = paste0(dect, ident_2), 
+                       verbose = FALSE)
+head(mono.de, n = config$nb_top_markers_de)
+```
+
+
+```{r}
+bulk.mono.de <- FindMarkers(object = pseudo_seurat, 
+                         ident.1 = paste0(dect, ident_1), ident.2 = paste0(dect, ident_2),
+                         test.use = "DESeq2")
+head(bulk.mono.de, n = config$nb_top_markers_de)
+```
+
+### compare the DE P-values between the single-cell level and the pseudobulk level results
+
+```{r}
+names(bulk.mono.de) <- paste0(names(bulk.mono.de), ".bulk")
+bulk.mono.de$gene <- rownames(bulk.mono.de)
+
+names(mono.de) <- paste0(names(mono.de), ".sc")
+mono.de$gene <- rownames(mono.de)
+
+merge_dat <- merge(mono.de, bulk.mono.de, by = "gene")
+merge_dat <- merge_dat[order(merge_dat$p_val.bulk), ]
+
+# Number of genes that are marginally significant in both; marginally significant only in bulk; and marginally significant only in single-cell
+common <- merge_dat$gene[which(merge_dat$p_val.bulk < 0.05 & 
+                                merge_dat$p_val.sc < 0.05)]
+only_sc <- merge_dat$gene[which(merge_dat$p_val.bulk > 0.05 & 
+                                  merge_dat$p_val.sc < 0.05)]
+only_bulk <- merge_dat$gene[which(merge_dat$p_val.bulk < 0.05 & 
+                                    merge_dat$p_val.sc > 0.05)]
+print(paste0('# Common: ',length(common)))
+```
+
+
+```{r}
+print(paste0('# Only in single-cell: ',length(only_sc)))
+```
+
+
+```{r}
+print(paste0('# Only in bulk: ',length(only_bulk)))
+```
+
+
+### examine the top genes that are differentially expressed in both analyses.
+
+
+```{r}
+# create a new column to annotate sample-condition-celltype in the single-cell dataset
+seurat$donor_id.stim <- paste0(seurat$disease, "-", seurat$sample)
+
+# generate violin plot 
+Idents(seurat) <- "celltype.stim"
+print(merge_dat[merge_dat$gene%in%common[1:2], c('gene','p_val.sc','p_val.bulk')])
+```
+
+```{r}
+VlnPlot(pseudo_seurat, features = common[1:2], 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") 
+```
+
+
+
+```{r}
+VlnPlot(seurat, features = common[1:2], 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "donor_id.stim", ncol = 1) 
+```
+
+### examine examples of genes that are only DE under the single-cell analysis.
+
+
+```{r}
+print(merge_dat[merge_dat$gene %in% only_sc[1:2], c('gene','p_val.sc','p_val.bulk')])
+```
+
+```{r}
+VlnPlot(pseudo_seurat, features <- only_sc[1:2], 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") 
+```
+
+
+
+### IL36A Pathway analysis PPP vs PSO
+
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36A"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36A expression for DC (PPP vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36G Pathway analysis PPP vs PSO
+
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36G"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36G expression for DC (PPP vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36B Pathway analysis PPP vs PSO
+
+
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36B"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36B expression for DC (PPP vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36RN Pathway analysis PPP vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36RN"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36RN expression for DC (PPP vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36RN"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36RN expression for DC (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+
+
+## DE : Fibroblasts HS vs PSO
+
+```{r}
+dect <- "Fibroblasts"
+ident_1 <- "_HS"
+ident_2 <- "_PSO"
+```
+
+### Perform DE analysis within the same cell type across conditions
+
+```{r}
+seurat$celltype.stim <- paste(seurat$SingleR.HPCA, seurat$disease, sep = "_")
+Idents(seurat) <- "celltype.stim"
+```
+
+```{r}
+mono.de <- FindMarkers(seurat, 
+                       ident.1 = paste0(dect, ident_1), ident.2 = paste0(dect, ident_2), 
+                       verbose = FALSE)
+head(mono.de, n = config$nb_top_markers_de)
+```
+
+
+```{r}
+bulk.mono.de <- FindMarkers(object = pseudo_seurat, 
+                         ident.1 = paste0(dect, ident_1), ident.2 = paste0(dect, ident_2),
+                         test.use = "DESeq2")
+head(bulk.mono.de, n = config$nb_top_markers_de)
+```
+
+### compare the DE P-values between the single-cell level and the pseudobulk level results
+
+```{r}
+names(bulk.mono.de) <- paste0(names(bulk.mono.de), ".bulk")
+bulk.mono.de$gene <- rownames(bulk.mono.de)
+
+names(mono.de) <- paste0(names(mono.de), ".sc")
+mono.de$gene <- rownames(mono.de)
+
+merge_dat <- merge(mono.de, bulk.mono.de, by = "gene")
+merge_dat <- merge_dat[order(merge_dat$p_val.bulk), ]
+
+# Number of genes that are marginally significant in both; marginally significant only in bulk; and marginally significant only in single-cell
+common <- merge_dat$gene[which(merge_dat$p_val.bulk < 0.05 & 
+                                merge_dat$p_val.sc < 0.05)]
+only_sc <- merge_dat$gene[which(merge_dat$p_val.bulk > 0.05 & 
+                                  merge_dat$p_val.sc < 0.05)]
+only_bulk <- merge_dat$gene[which(merge_dat$p_val.bulk < 0.05 & 
+                                    merge_dat$p_val.sc > 0.05)]
+print(paste0('# Common: ',length(common)))
+```
+
+
+```{r}
+print(paste0('# Only in single-cell: ',length(only_sc)))
+```
+
+
+```{r}
+print(paste0('# Only in bulk: ',length(only_bulk)))
+```
+
+
+### examine the top genes that are differentially expressed in both analyses.
+
+
+```{r}
+# create a new column to annotate sample-condition-celltype in the single-cell dataset
+seurat$donor_id.stim <- paste0(seurat$disease, "-", seurat$sample)
+
+# generate violin plot 
+Idents(seurat) <- "celltype.stim"
+print(merge_dat[merge_dat$gene%in%common[1:2], c('gene','p_val.sc','p_val.bulk')])
+```
+
+```{r}
+VlnPlot(pseudo_seurat, features = common[1:2], 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") 
+```
+
+
+
+```{r}
+VlnPlot(seurat, features = common[1:2], 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "donor_id.stim", ncol = 1) 
+```
+
+### examine examples of genes that are only DE under the single-cell analysis.
+
+
+```{r}
+print(merge_dat[merge_dat$gene %in% only_sc[1:2], c('gene','p_val.sc','p_val.bulk')])
+```
+
+```{r}
+VlnPlot(pseudo_seurat, features <- only_sc[1:2], 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") 
+```
+
+
+
+
+### IL36A Pathway analysis HS vs PSO
+
+
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36A"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease", pt.size = 1) + 
+  plot_annotation(title = 'IL36A expression for Fibroblasts (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36G Pathway analysis HS vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36G"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36G expression for Fibroblasts (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36B Pathway analysis HS vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36B"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36B expression for Fibroblasts (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36RN Pathway analysis HS vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36RN"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36RN expression for Fibroblasts (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+
+
+## DE : Fibroblasts PPP vs PSO
+
+```{r}
+dect <- "Fibroblasts"
+ident_1 <- "_PPP"
+ident_2 <- "_PSO"
+```
+
+### Perform DE analysis within the same cell type across conditions
+
+```{r}
+seurat$celltype.stim <- paste(seurat$SingleR.HPCA, seurat$disease, sep = "_")
+Idents(seurat) <- "celltype.stim"
+```
+
+```{r}
+mono.de <- FindMarkers(seurat, 
+                       ident.1 = paste0(dect, ident_1), ident.2 = paste0(dect, ident_2), 
+                       verbose = FALSE)
+head(mono.de, n = config$nb_top_markers_de)
+```
+
+
+```{r}
+bulk.mono.de <- FindMarkers(object = pseudo_seurat, 
+                         ident.1 = paste0(dect, ident_1), ident.2 = paste0(dect, ident_2),
+                         test.use = "DESeq2")
+head(bulk.mono.de, n = config$nb_top_markers_de)
+```
+
+### compare the DE P-values between the single-cell level and the pseudobulk level results
+
+```{r}
+names(bulk.mono.de) <- paste0(names(bulk.mono.de), ".bulk")
+bulk.mono.de$gene <- rownames(bulk.mono.de)
+
+names(mono.de) <- paste0(names(mono.de), ".sc")
+mono.de$gene <- rownames(mono.de)
+
+merge_dat <- merge(mono.de, bulk.mono.de, by = "gene")
+merge_dat <- merge_dat[order(merge_dat$p_val.bulk), ]
+
+# Number of genes that are marginally significant in both; marginally significant only in bulk; and marginally significant only in single-cell
+common <- merge_dat$gene[which(merge_dat$p_val.bulk < 0.05 & 
+                                merge_dat$p_val.sc < 0.05)]
+only_sc <- merge_dat$gene[which(merge_dat$p_val.bulk > 0.05 & 
+                                  merge_dat$p_val.sc < 0.05)]
+only_bulk <- merge_dat$gene[which(merge_dat$p_val.bulk < 0.05 & 
+                                    merge_dat$p_val.sc > 0.05)]
+print(paste0('# Common: ',length(common)))
+```
+
+
+```{r}
+print(paste0('# Only in single-cell: ',length(only_sc)))
+```
+
+
+```{r}
+print(paste0('# Only in bulk: ',length(only_bulk)))
+```
+
+
+### examine the top genes that are differentially expressed in both analyses.
+
+
+```{r}
+# create a new column to annotate sample-condition-celltype in the single-cell dataset
+seurat$donor_id.stim <- paste0(seurat$disease, "-", seurat$sample)
+
+# generate violin plot 
+Idents(seurat) <- "celltype.stim"
+print(merge_dat[merge_dat$gene%in%common[1:2], c('gene','p_val.sc','p_val.bulk')])
+```
+
+```{r}
+VlnPlot(pseudo_seurat, features = common[1:2], 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") 
+```
+
+
+
+```{r}
+VlnPlot(seurat, features = common[1:2], 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "donor_id.stim", ncol = 1) 
+```
+
+### examine examples of genes that are only DE under the single-cell analysis.
+
+
+```{r}
+print(merge_dat[merge_dat$gene %in% only_sc[1:2], c('gene','p_val.sc','p_val.bulk')])
+```
+
+```{r}
+VlnPlot(pseudo_seurat, features <- only_sc[1:2], 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") 
+```
+
+
+
+
+### IL36A Pathway analysis PPP vs PSO
+
+
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36A"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36A expression for Fibroblasts (PPP vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36G Pathway analysis PPP vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36G"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36G expression for Fibroblasts (PPP vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36B Pathway analysis PPP vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36B"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36B expression for Fibroblasts (PPP vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36RN Pathway analysis PPP vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36RN"), 
+        idents = c(paste0(dect, ident_1), paste0(dect, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36RN expression for Fibroblasts (PPP vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+
+
+## DE : T-cells HS vs PSO
+
+```{r}
+dect_u <- "T_cells"
+dect_m <- "T-cells"
+ident_1 <- "_HS"
+ident_2 <- "_PSO"
+```
+
+### Perform DE analysis within the same cell type across conditions
+
+```{r}
+seurat$celltype.stim <- paste(seurat$SingleR.HPCA, seurat$disease, sep = "_")
+Idents(seurat) <- "celltype.stim"
+```
+
+```{r}
+mono.de <- FindMarkers(seurat, 
+                       ident.1 = paste0(dect_u, ident_1), ident.2 = paste0(dect_u, ident_2), 
+                       verbose = FALSE)
+head(mono.de, n = config$nb_top_markers_de)
+```
+
+
+```{r}
+bulk.mono.de <- FindMarkers(object = pseudo_seurat, 
+                         ident.1 = paste0(dect_m, ident_1), ident.2 = paste0(dect_m, ident_2),
+                         test.use = "DESeq2")
+head(bulk.mono.de, n = config$nb_top_markers_de)
+```
+
+### compare the DE P-values between the single-cell level and the pseudobulk level results
+
+```{r}
+names(bulk.mono.de) <- paste0(names(bulk.mono.de), ".bulk")
+bulk.mono.de$gene <- rownames(bulk.mono.de)
+
+names(mono.de) <- paste0(names(mono.de), ".sc")
+mono.de$gene <- rownames(mono.de)
+
+merge_dat <- merge(mono.de, bulk.mono.de, by = "gene")
+merge_dat <- merge_dat[order(merge_dat$p_val.bulk), ]
+
+# Number of genes that are marginally significant in both; marginally significant only in bulk; and marginally significant only in single-cell
+common <- merge_dat$gene[which(merge_dat$p_val.bulk < 0.05 & 
+                                merge_dat$p_val.sc < 0.05)]
+only_sc <- merge_dat$gene[which(merge_dat$p_val.bulk > 0.05 & 
+                                  merge_dat$p_val.sc < 0.05)]
+only_bulk <- merge_dat$gene[which(merge_dat$p_val.bulk < 0.05 & 
+                                    merge_dat$p_val.sc > 0.05)]
+print(paste0('# Common: ',length(common)))
+```
+
+
+```{r}
+print(paste0('# Only in single-cell: ',length(only_sc)))
+```
+
+
+```{r}
+print(paste0('# Only in bulk: ',length(only_bulk)))
+```
+
+
+### examine the top genes that are differentially expressed in both analyses.
+
+
+```{r}
+# create a new column to annotate sample-condition-celltype in the single-cell dataset
+seurat$donor_id.stim <- paste0(seurat$disease, "-", seurat$sample)
+
+# generate violin plot 
+Idents(seurat) <- "celltype.stim"
+print(merge_dat[merge_dat$gene%in%common[1:2], c('gene','p_val.sc','p_val.bulk')])
+```
+
+```{r}
+VlnPlot(seurat, features = common[1:2], 
+        idents = c(paste0(dect_u, ident_1), paste0(dect_u, ident_2)), 
+        group.by = "disease") 
+```
+```{r}
+VlnPlot(pseudo_seurat, features = common[1:2], 
+        idents = c(paste0(dect_m, ident_1), paste0(dect_m, ident_2)), 
+        group.by = "disease") 
+```
+
+
+```{r}
+VlnPlot(seurat, features = common[1:2], 
+        idents = c(paste0(dect_u, ident_1), paste0(dect_u, ident_2)), 
+        group.by = "donor_id.stim", ncol = 1) 
+```
+
+
+### examine examples of genes that are only DE under the single-cell analysis.
+
+
+```{r}
+print(merge_dat[merge_dat$gene %in% only_sc[1:2], c('gene','p_val.sc','p_val.bulk')])
+```
+
+```{r}
+VlnPlot(pseudo_seurat, features <- only_sc[1:2], 
+        idents = c(paste0(dect_m, ident_1), paste0(dect_m, ident_2)), 
+        group.by = "disease") 
+```
+
+
+
+### IL36A Pathway analysis HS vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36A"), 
+        idents = c(paste0(dect_m, ident_1), paste0(dect_m, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36A expression for T-cells (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36G Pathway analysis HS vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36G"), 
+        idents = c(paste0(dect_m, ident_1), paste0(dect_m, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36G expression for T-cells (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36B Pathway analysis HS vs PSO
+
+
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36B"), 
+        idents = c(paste0(dect_m, ident_1), paste0(dect_m, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36B expression for T-cells (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36RN Pathway analysis HS vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36RN"), 
+        idents = c(paste0(dect_m, ident_1), paste0(dect_m, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36RN expression for T-cells (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+
+## DE : T-cells PPP vs PSO
+
+```{r}
+dect_u <- "T_cells"
+dect_m <- "T-cells"
+ident_1 <- "_PPP"
+ident_2 <- "_PSO"
+```
+
+### Perform DE analysis within the same cell type across conditions
+
+```{r}
+seurat$celltype.stim <- paste(seurat$SingleR.HPCA, seurat$disease, sep = "_")
+Idents(seurat) <- "celltype.stim"
+```
+
+```{r}
+mono.de <- FindMarkers(seurat, 
+                       ident.1 = paste0(dect_u, ident_1), ident.2 = paste0(dect_u, ident_2), 
+                       verbose = FALSE)
+head(mono.de, n = config$nb_top_markers_de)
+```
+
+
+```{r}
+bulk.mono.de <- FindMarkers(object = pseudo_seurat, 
+                         ident.1 = paste0(dect_m, ident_1), ident.2 = paste0(dect_m, ident_2),
+                         test.use = "DESeq2")
+head(bulk.mono.de, n = config$nb_top_markers_de)
+```
+
+### compare the DE P-values between the single-cell level and the pseudobulk level results
+
+```{r}
+names(bulk.mono.de) <- paste0(names(bulk.mono.de), ".bulk")
+bulk.mono.de$gene <- rownames(bulk.mono.de)
+
+names(mono.de) <- paste0(names(mono.de), ".sc")
+mono.de$gene <- rownames(mono.de)
+
+merge_dat <- merge(mono.de, bulk.mono.de, by = "gene")
+merge_dat <- merge_dat[order(merge_dat$p_val.bulk), ]
+
+# Number of genes that are marginally significant in both; marginally significant only in bulk; and marginally significant only in single-cell
+common <- merge_dat$gene[which(merge_dat$p_val.bulk < 0.05 & 
+                                merge_dat$p_val.sc < 0.05)]
+only_sc <- merge_dat$gene[which(merge_dat$p_val.bulk > 0.05 & 
+                                  merge_dat$p_val.sc < 0.05)]
+only_bulk <- merge_dat$gene[which(merge_dat$p_val.bulk < 0.05 & 
+                                    merge_dat$p_val.sc > 0.05)]
+print(paste0('# Common: ',length(common)))
+```
+
+
+```{r}
+print(paste0('# Only in single-cell: ',length(only_sc)))
+```
+
+
+```{r}
+print(paste0('# Only in bulk: ',length(only_bulk)))
+```
+
+
+### examine the top genes that are differentially expressed in both analyses.
+
+
+```{r}
+# create a new column to annotate sample-condition-celltype in the single-cell dataset
+seurat$donor_id.stim <- paste0(seurat$disease, "-", seurat$sample)
+
+# generate violin plot 
+Idents(seurat) <- "celltype.stim"
+print(merge_dat[merge_dat$gene%in%common[1:2], c('gene','p_val.sc','p_val.bulk')])
+```
+
+```{r}
+VlnPlot(seurat, features = common[1:2], 
+        idents = c(paste0(dect_u, ident_1), paste0(dect_u, ident_2)), 
+        group.by = "disease") 
+```
+```{r}
+VlnPlot(pseudo_seurat, features = common[1:2], 
+        idents = c(paste0(dect_m, ident_1), paste0(dect_m, ident_2)), 
+        group.by = "disease") 
+```
+
+
+```{r}
+VlnPlot(seurat, features = common[1:2], 
+        idents = c(paste0(dect_u, ident_1), paste0(dect_u, ident_2)), 
+        group.by = "donor_id.stim", ncol = 1) 
+```
+
+
+### examine examples of genes that are only DE under the single-cell analysis.
+
+
+```{r}
+print(merge_dat[merge_dat$gene %in% only_sc[1:2], c('gene','p_val.sc','p_val.bulk')])
+```
+
+```{r}
+VlnPlot(pseudo_seurat, features <- only_sc[1:2], 
+        idents = c(paste0(dect_m, ident_1), paste0(dect_m, ident_2)), 
+        group.by = "disease") 
+```
+
+
+
+### IL36A Pathway analysis PPP vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36A"), 
+        idents = c(paste0(dect_m, ident_1), paste0(dect_m, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36A expression for T-cells (PPP vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36G Pathway analysis PPP vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36G"), 
+        idents = c(paste0(dect_m, ident_1), paste0(dect_m, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36G expression for T-cells (PPP vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36B Pathway analysis PPP vs PSO
+
+
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36B"), 
+        idents = c(paste0(dect_m, ident_1), paste0(dect_m, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36B expression for T-cells (PPP vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36RN Pathway analysis PPP vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36RN"), 
+        idents = c(paste0(dect_m, ident_1), paste0(dect_m, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36RN expression for T-cells (PPP vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+
+
+## DE : B-cell HS vs PSO
+
+```{r}
+dect_u <- "B_cell"
+dect_m <- "B-cell"
+ident_1 <- "_HS"
+ident_2 <- "_PSO"
+```
+
+### Perform DE analysis within the same cell type across conditions
+
+```{r}
+seurat$celltype.stim <- paste(seurat$SingleR.HPCA, seurat$disease, sep = "_")
+Idents(seurat) <- "celltype.stim"
+```
+
+```{r}
+mono.de <- FindMarkers(seurat, 
+                       ident.1 = paste0(dect_u, ident_1), ident.2 = paste0(dect_u, ident_2), 
+                       verbose = FALSE)
+head(mono.de, n = config$nb_top_markers_de)
+```
+
+
+```{r}
+bulk.mono.de <- FindMarkers(object = pseudo_seurat, 
+                         ident.1 = paste0(dect_m, ident_1), ident.2 = paste0(dect_m, ident_2),
+                         test.use = "DESeq2")
+head(bulk.mono.de, n = config$nb_top_markers_de)
+```
+
+### compare the DE P-values between the single-cell level and the pseudobulk level results
+
+```{r}
+names(bulk.mono.de) <- paste0(names(bulk.mono.de), ".bulk")
+bulk.mono.de$gene <- rownames(bulk.mono.de)
+
+names(mono.de) <- paste0(names(mono.de), ".sc")
+mono.de$gene <- rownames(mono.de)
+
+merge_dat <- merge(mono.de, bulk.mono.de, by = "gene")
+merge_dat <- merge_dat[order(merge_dat$p_val.bulk), ]
+
+# Number of genes that are marginally significant in both; marginally significant only in bulk; and marginally significant only in single-cell
+common <- merge_dat$gene[which(merge_dat$p_val.bulk < 0.05 & 
+                                merge_dat$p_val.sc < 0.05)]
+only_sc <- merge_dat$gene[which(merge_dat$p_val.bulk > 0.05 & 
+                                  merge_dat$p_val.sc < 0.05)]
+only_bulk <- merge_dat$gene[which(merge_dat$p_val.bulk < 0.05 & 
+                                    merge_dat$p_val.sc > 0.05)]
+print(paste0('# Common: ',length(common)))
+```
+
+
+```{r}
+print(paste0('# Only in single-cell: ',length(only_sc)))
+```
+
+
+```{r}
+print(paste0('# Only in bulk: ',length(only_bulk)))
+```
+
+
+### examine the top genes that are differentially expressed in both analyses.
+
+
+```{r}
+# create a new column to annotate sample-condition-celltype in the single-cell dataset
+seurat$donor_id.stim <- paste0(seurat$disease, "-", seurat$sample)
+
+# generate violin plot 
+Idents(seurat) <- "celltype.stim"
+print(merge_dat[merge_dat$gene%in%common[1:2], c('gene','p_val.sc','p_val.bulk')])
+```
+
+```{r}
+VlnPlot(pseudo_seurat, features = common[1:2], 
+        idents = c(paste0(dect_m, ident_1), paste0(dect_m, ident_2)), 
+        group.by = "disease") 
+```
+
+
+
+```{r}
+VlnPlot(seurat, features = common[1:2], 
+        idents = c(paste0(dect_m, ident_1), paste0(dect_u, ident_2)), 
+        group.by = "donor_id.stim", ncol = 1) 
+```
+
+### examine examples of genes that are only DE under the single-cell analysis.
+
+
+```{r}
+print(merge_dat[merge_dat$gene %in% only_sc[1:2], c('gene','p_val.sc','p_val.bulk')])
+```
+
+```{r}
+VlnPlot(pseudo_seurat, features <- only_sc[1:2], 
+        idents = c(paste0(dect_m, ident_1), paste0(dect_m, ident_2)), 
+        group.by = "disease") 
+```
+
+
+
+
+### IL36A Pathway analysis HS vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36A"), 
+        idents = c(paste0(dect_m, ident_1), paste0(dect_m, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36A expression for B-cells (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36G Pathway analysis HS vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36G"), 
+        idents = c(paste0(dect_m, ident_1), paste0(dect_m, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36G expression for B-cells (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36B Pathway analysis HS vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36B"), 
+        idents = c(paste0(dect_m, ident_1), paste0(dect_m, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36B expression for B-cells (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36RN Pathway analysis HS vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36RN"), 
+        idents = c(paste0(dect_m, ident_1), paste0(dect_m, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36RN expression for B-cells (HS vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+
+
+## DE : B-cell PPP vs PSO
+
+```{r}
+dect_u <- "B_cell"
+dect_m <- "B-cell"
+ident_1 <- "_PPP"
+ident_2 <- "_PSO"
+```
+
+### Perform DE analysis within the same cell type across conditions
+
+```{r}
+seurat$celltype.stim <- paste(seurat$SingleR.HPCA, seurat$disease, sep = "_")
+Idents(seurat) <- "celltype.stim"
+```
+
+```{r}
+mono.de <- FindMarkers(seurat, 
+                       ident.1 = paste0(dect_u, ident_1), ident.2 = paste0(dect_u, ident_2), 
+                       verbose = FALSE)
+head(mono.de, n = config$nb_top_markers_de)
+```
+
+
+```{r}
+bulk.mono.de <- FindMarkers(object = pseudo_seurat, 
+                         ident.1 = paste0(dect_m, ident_1), ident.2 = paste0(dect_m, ident_2),
+                         test.use = "DESeq2")
+head(bulk.mono.de, n = config$nb_top_markers_de)
+```
+
+### compare the DE P-values between the single-cell level and the pseudobulk level results
+
+```{r}
+names(bulk.mono.de) <- paste0(names(bulk.mono.de), ".bulk")
+bulk.mono.de$gene <- rownames(bulk.mono.de)
+
+names(mono.de) <- paste0(names(mono.de), ".sc")
+mono.de$gene <- rownames(mono.de)
+
+merge_dat <- merge(mono.de, bulk.mono.de, by = "gene")
+merge_dat <- merge_dat[order(merge_dat$p_val.bulk), ]
+
+# Number of genes that are marginally significant in both; marginally significant only in bulk; and marginally significant only in single-cell
+common <- merge_dat$gene[which(merge_dat$p_val.bulk < 0.05 & 
+                                merge_dat$p_val.sc < 0.05)]
+only_sc <- merge_dat$gene[which(merge_dat$p_val.bulk > 0.05 & 
+                                  merge_dat$p_val.sc < 0.05)]
+only_bulk <- merge_dat$gene[which(merge_dat$p_val.bulk < 0.05 & 
+                                    merge_dat$p_val.sc > 0.05)]
+print(paste0('# Common: ',length(common)))
+```
+
+
+```{r}
+print(paste0('# Only in single-cell: ',length(only_sc)))
+```
+
+
+```{r}
+print(paste0('# Only in bulk: ',length(only_bulk)))
+```
+
+
+### examine the top genes that are differentially expressed in both analyses.
+
+
+```{r}
+# create a new column to annotate sample-condition-celltype in the single-cell dataset
+seurat$donor_id.stim <- paste0(seurat$disease, "-", seurat$sample)
+
+# generate violin plot 
+Idents(seurat) <- "celltype.stim"
+print(merge_dat[merge_dat$gene%in%common[1:2], c('gene','p_val.sc','p_val.bulk')])
+```
+
+```{r}
+VlnPlot(pseudo_seurat, features = common[1:2], 
+        idents = c(paste0(dect_m, ident_1), paste0(dect_m, ident_2)), 
+        group.by = "disease") 
+```
+
+
+
+```{r}
+VlnPlot(seurat, features = common[1:2], 
+        idents = c(paste0(dect_m, ident_1), paste0(dect_u, ident_2)), 
+        group.by = "donor_id.stim", ncol = 1) 
+```
+
+### examine examples of genes that are only DE under the single-cell analysis.
+
+
+```{r}
+print(merge_dat[merge_dat$gene %in% only_sc[1:2], c('gene','p_val.sc','p_val.bulk')])
+```
+
+```{r}
+VlnPlot(pseudo_seurat, features <- only_sc[1:2], 
+        idents = c(paste0(dect_m, ident_1), paste0(dect_m, ident_2)), 
+        group.by = "disease") 
+```
+
+
+
+
+### IL36A Pathway analysis PPP vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36A"), 
+        idents = c(paste0(dect_m, ident_1), paste0(dect_m, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36A expression for B-cells (PPP vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36G Pathway analysis PPP vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36G"), 
+        idents = c(paste0(dect_m, ident_1), paste0(dect_m, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36G expression for B-cells (PPP vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36B Pathway analysis PPP vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36B"), 
+        idents = c(paste0(dect_m, ident_1), paste0(dect_m, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36B expression for B-cells (PPP vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+### IL36RN Pathway analysis PPP vs PSO
+
+
+```{r}
+VlnPlot(pseudo_seurat, features = c("IL36RN"), 
+        idents = c(paste0(dect_m, ident_1), paste0(dect_m, ident_2)), 
+        group.by = "disease") + 
+  plot_annotation(title = 'IL36RN expression for B-cells (PPP vs PSO)',
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+```
+
+
+
+
+
+
+

@@ -1,0 +1,897 @@
+---
+title: "Ligand Receptors Activity For PSO vs PPP"
+---
+
+
+```{r}
+library(  nichenetr) # Please update to v2.0.4
+library(Seurat)
+library(SeuratObject)
+library(tidyverse)
+library(circlize)
+library(gridGraphics)
+library(RColorBrewer)
+library(cowplot)
+library(ggpubr)
+```
+
+
+# PSO vs PPP: B Cells
+
+## Configuration
+
+```{r}
+config_receiver <- "B_cell"
+config_condition_oi <- "PPP"
+config_condition_reference <- "PSO"
+config_seurat_filtering <- c("Keratinocytes", 
+                             "Fibroblasts", 
+                             "B_cell", 
+                             "Macrophage", 
+                             "Monocyte", 
+                             "DC", 
+                             "NK_cell", 
+                             "Epithelial_cells",
+                             "Neutrophils",
+                             "T_cells")
+config_sender <- c("Keratinocytes", 
+                             "Fibroblasts", 
+                             "B_cell", 
+                             "Macrophage", 
+                             "Monocyte", 
+                             "DC", 
+                             "NK_cell", 
+                             "Epithelial_cells",
+                             "Neutrophils",
+                             "T_cells")
+```
+
+```{r}
+ligand_colors <- c(
+  "B_cell" = "#ff7f0e",              # A warm orange
+  "CAF-specific" = "#9467bd",        # A moderate purple
+  "DC" = "#2ca02c",                  # A balanced green
+  "Endothelial-specific" = "#17becf", # A soft cyan
+  "Epithelial_cells" = "#214245",    # A dark teal (kept original)
+  "Fibroblasts" = "#d62728",         # A distinct red
+  "Fibroblasts-specific" = "#bcbd22",# A muted olive
+  "General" = "#1f77b4",             # A calm blue
+  "Keratinocytes" = "#8c564b",       # A neutral brown
+  "Keratinocytes-specific" = "#e377c2",  # A light pink
+  "Macrophage" = "#7f7f7f",          # A neutral gray
+  "Monocyte" = "#c5b0d5",            # A pastel purple
+  "Monocyte-specific" = "#ff9896",   # A light coral
+  "NK_cell" = "#c49c94",             # A subtle tan
+  "Neutrophils" = "#f7b6d2",         # A soft pink
+  "T_cells" = "#dbdb8d",             # A soft yellow-green
+  "T_cells-specific" = "#ffbb78",    # A light orange
+  "exp1" = "#ffbb78"                 # A light orange
+)
+
+```
+
+
+```{r}
+ligand_colors <- c(
+  #  "exp1" = "#FFA07A",                 # A bright light salmon
+  "B_cell" = "#ff7f0e",              # A bright orange-red
+  "CAF-specific" = "#9400D3",        # A vivid purple
+  "DC" = "#2ca02c",                  # A bright lime green
+  "Endothelial-specific" = "#17becf", # A bright turquoise
+  "Epithelial_cells" = "#214245",    # A dark teal (kept original)
+  "Fibroblasts" = "#AF0000",         # A bright red
+  "Fibroblasts-specific" = "#FFD700",# A bright gold
+  "General" = "#1f77b4",             # A bright dodger blue
+  "Keratinocytes" = "#8c564b",       # A rich saddle brown
+  "Keratinocytes-specific" = "#e377c2",  # A bright hot pink
+  "Macrophage" = "#7f7f7f",          # A neutral gray (kept original)
+  "Monocyte" = "#c5b0d5",            # A medium orchid purple
+  "Monocyte-specific" = "#ff9896",   # A bright tomato red
+  "NK_cell" = "#c49c94",             # A bright peach puff
+  "Neutrophils" = "#C62F75",         # A bright deep pink
+  "T_cells" = "#dbdb8d",             # A bright green-yellow
+  "T_cells-specific" = "#FFA07A"    # A bright light salmon
+
+)
+```
+
+
+```{r}
+make_circos_plot_transparency_workaround <- function (vis_circos_obj, transparency = FALSE, args.circos.text = list(), 
+    ...) 
+{
+    if (!is.logical(transparency)) 
+        stop("transparency should be a logical")
+    if (!all(c("links_circle", "ligand_colors", "order", "gaps") %in% 
+        names(vis_circos_obj))) 
+        stop("vis_circos_obj should contain the elements 'links_circle', 'ligand_colors', 'order' and 'gaps'")
+    if (!all(names(args.circos.text) %in% names(formals(circos.text)))) {
+        warning("args.circos.text contain element(s) that are not part of the arguments of circos.text")
+    }
+    if (!all(names(list(...)) %in% names(formals(chordDiagram)))) {
+        warning("extra arguments contain element(s) that are not part of the arguments of chordDiagram")
+    }
+    if (!transparency) {
+        transparency_val <- 0
+    }
+    else if (transparency) {
+    # Normalize weights and set a minimum threshold for transparency
+    transparency_val <- vis_circos_obj$links_circle %>%
+        mutate(weight = (weight - min(weight)) / (max(weight) - min(weight))) %>%
+        mutate(transparency = 1 - weight) %>%
+        mutate(transparency = ifelse(transparency > 0.8, 0.8, transparency)) %>%
+        .$transparency
+}
+
+    default_params <- list(x = vis_circos_obj$links_circle, order = vis_circos_obj$order, 
+        grid.col = vis_circos_obj$ligand_colors, transparency = transparency_val, 
+        directional = 1, link.sort = TRUE, link.decreasing = FALSE, 
+        diffHeight = 0.005, direction.type = c("diffHeight", 
+            "arrows"), link.arr.type = "big.arrow", link.visible = vis_circos_obj$links_circle$weight >= 
+            attr(vis_circos_obj$links_circle, "cutoff_include_all_ligands"), 
+        annotationTrack = "grid", preAllocateTracks = list(track.height = 0.075))
+    default_params[names(list(...))] = list(...)
+    circos_text_default_params <- list(facing = "clockwise", 
+        niceFacing = TRUE, adj = c(0, 0.55), cex = 1)
+    circos_text_default_params[names(args.circos.text)] <- args.circos.text
+    circos.par(gap.degree = vis_circos_obj$gaps)
+    do.call(chordDiagram, default_params)
+    circos.track(track.index = 1, panel.fun = function(x, y) {
+        do.call(circos.text, c(list(x = CELL_META$xcenter, y = CELL_META$ylim[1], 
+            label = CELL_META$sector.index), circos_text_default_params))
+    }, bg.border = NA)
+    circos.clear()
+}
+```
+
+
+```{r}
+grid_col_ligand <- c(
+  "DC-specific" = "#9467bd",
+  "Epithelial_cells-specific" = "#214245",
+  "Fibroblasts-specific" = "#bcbd22",
+  "General" = "#1f77b4",
+  "Keratinocytes-specific" = "#e377c2",
+  "Macrophage-specific" = "#7f7f7f",
+  "Monocyte-specific" = "#ff9896",
+  "T_cells-specific" = "#ffbb78"
+)
+```
+
+
+## Prepare seurat object
+
+```{r}
+load("data/seurat-133-20240808.RData")
+seurat <- RenameAssays(object = seurat, originalexp = 'RNA')
+Idents(seurat) <- "SingleR.HPCA"
+seurat <- seurat[, seurat$disease %in% c(config_condition_reference, config_condition_oi)]
+seurat <- seurat[, seurat$SingleR.HPCA %in% config_seurat_filtering]
+```
+
+## Load data
+
+```{r}
+#ligand_target_matrix <- readRDS(url("https://zenodo.org/record/7074291/files/ligand_target_matrix_nsga2r_final.rds"))
+ligand_target_matrix <- readRDS(file = "data/ligand_target_matrix_nsga2r_final.rds")
+ligand_target_matrix[1:5,1:5] # target genes in rows, ligands in columns
+
+#lr_network <- readRDS(url("https://zenodo.org/record/7074291/files/lr_network_human_21122021.rds"))
+lr_network <- readRDS(file = "data/lr_network_human_21122021.rds")
+#head(lr_network)
+
+#weighted_networks <- readRDS(url("https://zenodo.org/record/7074291/files/weighted_networks_nsga2r_final.rds"))
+weighted_networks <- readRDS("data/weighted_networks_nsga2r_final.rds")
+#head(weighted_networks$lr_sig) # interactions and their weights in the ligand-receptor + signaling network
+#head(weighted_networks$gr) # interactions and their weights in the gene regulatory network
+```
+
+## Nichenet Run
+
+```{r}
+nichenet_output <- nichenet_seuratobj_aggregate(
+  seurat_obj = seurat, 
+  receiver = config_receiver, 
+  condition_colname = "disease", condition_oi = config_condition_oi, condition_reference = config_condition_reference, 
+  sender = config_sender, 
+  ligand_target_matrix = ligand_target_matrix, 
+  lr_network = lr_network, 
+  weighted_networks = weighted_networks,
+  top_n_ligands = 30,
+  top_n_targets = 50,
+  assay_oi = "RNA",
+  cutoff_visualization = 0.33)
+```
+
+```{r}
+nichenet_output$ligand_activities
+```
+
+
+```{r}
+DotPlot(seurat, features = nichenet_output$top_ligands %>% rev(), cols = "RdYlBu") + RotatedAxis()
+```
+
+```{r}
+DotPlot(seurat, features = nichenet_output$top_ligands %>% rev(), split.by = "disease", 
+        cols = c("lightgrey", "blue","red", "orange", "purple", "yellow")) + 
+  RotatedAxis()
+```
+
+
+
+
+```{r}
+VlnPlot(seurat, features = c("IL36A", "IL36G", "IL36B", "IL36RN", "IL1B", "IL17C", "CXCL1", "CXCL2", "CXCL8", "CXCL10", "CLCN2", "CLCN3", "CLCN5", "CCL20", "CSF3" , "IL8", "DEFB4A", "DEFB103B", "CAMP", "S100A7", "IFNA1", "CD83", "CD86", "HLA-DRA", "IL6", "IL23A", "TNF", "IFNGR1", "TNFRSF1A ","CXCR2" )
+        , split.by = "disease", pt.size = 0, combine = FALSE)
+```
+
+```{r}
+nichenet_output$ligand_differential_expression_heatmap
+```
+
+```{r}
+hmp <- nichenet_output$ligand_target_heatmap
+hmp + theme(
+  axis.title.x = element_text(size = 16),
+  axis.text.x = element_text(size = 10),
+  axis.title.y = element_text(size = 16))
+
+```
+
+## Reference seurat_wrapper_circos
+
+https://github.com/saeyslab/nichenetr/blob/master/vignettes/seurat_wrapper_circos.md
+
+
+```{r}
+ligand_type_indication_df <- assign_ligands_to_celltype(seurat,
+                                                        nichenet_output$top_ligands,
+                                                        celltype_col = "SingleR.HPCA") 
+```
+
+```{r}
+ligand_type_indication_df %>% head()
+##   ligand_type ligand
+## 1           B  H2-M3
+## 2           B   Btla
+## 3          NK  Ptprc
+## 4          NK  H2-Q7
+## 5          NK   Cd48
+## 6        Mono   Ebi3
+```
+
+```{r}
+ligand_type_indication_df$ligand_type %>% table()
+## .
+##       B      DC General    Mono      NK 
+##       2       8       1       6       3
+```
+```{r}
+active_ligand_target_links_df <- nichenet_output$ligand_target_df
+active_ligand_target_links_df$target_type <- "exp1" # needed for joining tables
+circos_links <- get_ligand_target_links_oi(ligand_type_indication_df,
+                                           active_ligand_target_links_df,
+                                           cutoff = 0.40) 
+
+head(circos_links)
+```
+
+
+
+```{r}
+target_colors <- c("exp1" = "#08523c") 
+
+vis_circos_obj <- prepare_circos_visualization(circos_links,
+                                               ligand_colors = ligand_colors,
+                                               target_colors = target_colors,
+                                               celltype_order = NULL) 
+
+```
+
+### Third and Fourth Circos plot
+
+```{r}
+par(bg = "transparent")
+
+# Default celltype order
+celltype_order <- unique(circos_links$ligand_type) %>% sort() %>% .[. != "General"] %>% c(., "General")
+
+# Create legend
+circos_legend <- ComplexHeatmap::Legend(
+  labels = celltype_order,
+  background = ligand_colors[celltype_order],
+  type = "point",
+  grid_height = unit(3, "mm"),
+  grid_width = unit(3, "mm"),
+  labels_gp = grid::gpar(fontsize = 8)
+  )
+
+circos_legend_grob <- grid::grid.grabExpr(ComplexHeatmap::draw(circos_legend))
+
+make_circos_plot(vis_circos_obj, transparency = TRUE, args.circos.text = list(cex = 0.5))
+p_circos_no_legend <- recordPlot()
+```
+
+```{r}
+cowplot::plot_grid(p_circos_no_legend, circos_legend_grob, rel_widths = c(1, 0.2))
+```
+
+### Visualize ligand-receptor interactions of the prioritized ligands in a circos plot
+
+```{r}
+lr_network_top_df <- nichenet_output$ligand_receptor_df %>%
+  mutate(target_type = "exp1") %>%
+  rename(target=receptor) %>%
+  inner_join(ligand_type_indication_df)
+
+receptor_colors <- c("exp1" = "#08523c")
+
+vis_circos_receptor_obj <- prepare_circos_visualization(lr_network_top_df,
+                                                        ligand_colors = ligand_colors,
+                                                        target_colors = receptor_colors) 
+```
+```{r}
+make_circos_plot(vis_circos_receptor_obj, transparency = TRUE,
+                 link.visible = TRUE,  args.circos.text = list(cex = 0.5)) 
+p_circos_no_legend <- recordPlot()
+```
+
+```{r}
+# Default celltype order
+celltype_order <- unique(lr_network_top_df$ligand_type) %>% sort() %>% .[. != "General"] %>% c(., "General") %>% .[. != "exp1"] %>% c(., "exp1")
+# Create legend
+circos_legend <- ComplexHeatmap::Legend(
+  labels = celltype_order,
+  background = ligand_colors[celltype_order],
+  type = "point",
+  grid_height = unit(3, "mm"),
+  grid_width = unit(3, "mm"),
+  labels_gp = grid::gpar(fontsize = 8)
+  )
+
+circos_legend_grob <- grid::grid.grabExpr(ComplexHeatmap::draw(circos_legend))
+cowplot::plot_grid(p_circos_no_legend, circos_legend_grob, rel_widths = c(1, 0.2))
+```
+
+
+
+
+## Custom Workflow
+
+
+```{r}
+avg_expression_ligands <- AggregateExpression(seurat, features = nichenet_output$top_ligands)
+```
+
+```{r}
+sender_ligand_assignment <- avg_expression_ligands$RNA %>% apply(1, function(ligand_expression){
+  ligand_expression > (ligand_expression %>% mean() + ligand_expression %>% sd())
+}) %>% t()
+sender_ligand_assignment <- sender_ligand_assignment %>% apply(2, function(x){x[x == TRUE]}) %>% purrr::keep(function(x){length(x) > 0})
+names(sender_ligand_assignment)
+sender_ligand_assignment
+```
+### Circos Data Preparation
+
+
+```{r}
+all_assigned_ligands <- sender_ligand_assignment %>% lapply(function(x){names(x)}) %>% unlist()
+unique_ligands <- all_assigned_ligands %>% table() %>% .[. == 1] %>% names()
+general_ligands <- nichenet_output$top_ligands %>% setdiff(unique_ligands)
+
+
+Keratinocytes_specific_ligands <- sender_ligand_assignment$Keratinocytes %>% names() %>% setdiff(general_ligands)
+Macrophage_specific_ligands <- sender_ligand_assignment$Macrophage %>% names() %>% setdiff(general_ligands)
+Monocyte_specific_ligands <- sender_ligand_assignment$Monocyte %>% names() %>% setdiff(general_ligands)
+DC_specific_ligands <- sender_ligand_assignment$DC %>% names() %>% setdiff(general_ligands)
+Fibroblasts_specific_ligands <- sender_ligand_assignment$Fibroblasts %>% names() %>% setdiff(general_ligands)
+Epithelial_cells_specific_ligands <- sender_ligand_assignment$`Epithelial-cells` %>% names() %>% setdiff(general_ligands)
+T_cells_specific_ligands <- sender_ligand_assignment$`T-cells` %>% names() %>% setdiff(general_ligands)
+
+ligand_type_indication_df <- tibble(
+  ligand_type = c(rep("Keratinocytes-specific", times = Keratinocytes_specific_ligands %>% length()),
+                  rep("Macrophage-specific", times = Macrophage_specific_ligands %>% length()),
+                  rep("Monocyte-specific", times = Monocyte_specific_ligands %>% length()),
+                  rep("DC-specific", times = DC_specific_ligands %>% length()),
+                  rep("Fibroblasts-specific", times = Fibroblasts_specific_ligands %>% length()),
+                  rep("Epithelial_cells-specific", times = Epithelial_cells_specific_ligands %>% length()),
+                  rep("T_cells-specific", times = T_cells_specific_ligands %>% length()),
+                  rep("General", times = general_ligands %>% length())),
+  ligand = c(Keratinocytes_specific_ligands, 
+             Macrophage_specific_ligands, 
+             Monocyte_specific_ligands, 
+             DC_specific_ligands, 
+             Fibroblasts_specific_ligands,
+             Epithelial_cells_specific_ligands,
+             T_cells_specific_ligands,
+             general_ligands))
+```
+
+```{r}
+
+active_ligand_target_links_df <- nichenet_output$ligand_target_df %>% 
+  mutate(target_type = "exp1") %>% 
+  inner_join(ligand_type_indication_df) # if you want ot make circos plots for multiple gene sets, combine the different data frames and differentiate which target belongs to which gene set via the target type
+
+cutoff_include_all_ligands <- active_ligand_target_links_df$weight %>% quantile(0.40)
+
+active_ligand_target_links_df_circos <- active_ligand_target_links_df %>% filter(weight > cutoff_include_all_ligands)
+
+ligands_to_remove <- setdiff(active_ligand_target_links_df$ligand %>% unique(), 
+                             active_ligand_target_links_df_circos$ligand %>% unique())
+targets_to_remove <- setdiff(active_ligand_target_links_df$target %>% unique(), 
+                             active_ligand_target_links_df_circos$target %>% unique())
+
+
+```
+
+```{r}
+circos_links <- active_ligand_target_links_df %>% filter(!target %in% targets_to_remove &!ligand %in% ligands_to_remove)
+
+grid_col_target <- c(
+  "exp1" = "tomato")
+
+grid_col_tbl_ligand <- tibble(ligand_type = grid_col_ligand %>% names(), color_ligand_type = grid_col_ligand)
+grid_col_tbl_target <- tibble(target_type = grid_col_target %>% names(), color_target_type = grid_col_target)
+
+circos_links <- circos_links %>% mutate(ligand = paste(ligand," ")) # extra space: make a difference between a gene as ligand and a gene as target!
+circos_links <- circos_links %>% inner_join(grid_col_tbl_ligand) %>% inner_join(grid_col_tbl_target)
+links_circle <- circos_links %>% select(ligand,target, weight)
+
+ligand_color <- circos_links %>% distinct(ligand,color_ligand_type)
+grid_ligand_color <- ligand_color$color_ligand_type %>% set_names(ligand_color$ligand)
+target_color <- circos_links %>% distinct(target,color_target_type)
+grid_target_color <- target_color$color_target_type %>% set_names(target_color$target)
+
+grid_col <- c(grid_ligand_color, grid_target_color)
+
+# give the option that links in the circos plot will be transparant ~ ligand-target potential score
+transparency <- circos_links %>% mutate(weight =(weight-min(weight))/(max(weight)-min(weight))) %>% mutate(transparency = 1-weight) %>% .$transparency 
+
+target_order <- circos_links$target %>% unique()
+ligand_order <- c(Keratinocytes_specific_ligands, 
+                  Macrophage_specific_ligands, 
+                  Monocyte_specific_ligands,
+                  DC_specific_ligands, 
+                  Fibroblasts_specific_ligands,
+                  Epithelial_cells_specific_ligands,
+                  T_cells_specific_ligands,
+                  general_ligands) %>% c(paste(.," ")) %>% intersect(circos_links$ligand)
+order <- c(ligand_order, target_order)
+
+
+width_same_cell_same_ligand_type <- 0.5
+width_different_cell <- 6
+width_ligand_target <- 15
+width_same_cell_same_target_type <- 0.5
+
+gaps <- c(
+  # width_ligand_target,
+  rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "Keratinocytes-specific") %>% distinct(ligand) %>% nrow() -1)),
+  # width_different_cell,
+  #rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "Macrophage-specific") %>% distinct(ligand) %>% nrow() -1)),
+  width_different_cell,
+  rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "Monocyte-specific") %>% distinct(ligand) %>% nrow() -1)),
+  #width_different_cell,
+  #rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "DC-specific") %>% distinct(ligand) %>% nrow() -1)),
+  width_different_cell,
+  rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "Fibroblasts-specific") %>% distinct(ligand) %>% nrow() -1)),
+  # width_different_cell,
+  #rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "Epithelial_cells-specific") %>% distinct(ligand) %>% nrow() -1)),
+  width_different_cell,
+  rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "T_cells-specific") %>% distinct(ligand) %>% nrow() -1)),
+  #width_different_cell,
+  #rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "General") %>% distinct(ligand) %>% nrow() -1)),
+  width_ligand_target,
+  rep(width_same_cell_same_target_type, times = (circos_links %>% filter(target_type == "exp1") %>% distinct(target) %>% nrow() -1)),
+  width_ligand_target
+)
+```
+
+### First Circos Plot
+
+```{r}
+circos.clear()
+
+circos.par(gap.degree = gaps)
+chordDiagram(links_circle, directional = 1, 
+             order=order,
+             link.sort = TRUE, 
+             link.decreasing = FALSE, 
+             grid.col = grid_col,transparency = 0, 
+             diffHeight = 0.005, 
+             direction.type = c("diffHeight", "arrows"),
+             link.arr.type = "big.arrow", 
+             link.visible = links_circle$weight >= cutoff_include_all_ligands,
+             annotationTrack = "grid", 
+             preAllocateTracks = list(track.height = 0.075))
+
+# we go back to the first track and customize sector labels
+circos.track(track.index = 1, panel.fun = function(x, y) {
+  circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index,
+              facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.55), cex = 0.5)
+}, bg.border = NA) #
+
+```
+### Second Circos Plot
+
+
+```{r}
+circos.clear()
+
+
+circos.par(gap.degree = gaps)
+chordDiagram(links_circle, directional = 1,order=order,
+             link.sort = TRUE, link.decreasing = FALSE, 
+             grid.col = grid_col,transparency = transparency, 
+             diffHeight = 0.005, direction.type = c("diffHeight", "arrows"),
+             link.arr.type = "big.arrow", 
+             link.visible = links_circle$weight >= cutoff_include_all_ligands,
+             annotationTrack = "grid", 
+             preAllocateTracks = list(track.height = 0.075))
+
+# we go back to the first track and customize sector labels
+circos.track(track.index = 1, panel.fun = function(x, y) {
+  circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index,
+              facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.55), cex = 0.5)
+}, bg.border = NA) #
+
+```
+
+### Visualize ligand-receptor interactions of the prioritized ligands in a circos plot
+
+```{r}
+
+lr_network_top_df = nichenet_output$ligand_receptor_df %>% 
+  mutate(receptor_type = "HS_PPP_T_cells_receptor") %>% 
+  inner_join(ligand_type_indication_df)
+
+grid_col_receptor =c("HS_PPP_T_cells_receptor" = "tomato")
+
+grid_col_tbl_ligand = tibble(ligand_type = grid_col_ligand %>% names(), color_ligand_type = grid_col_ligand)
+grid_col_tbl_receptor = tibble(receptor_type = grid_col_receptor %>% names(), color_receptor_type = grid_col_receptor)
+
+# extra space: make a difference between a gene as ligand and a gene as receptor!
+circos_links = lr_network_top_df %>% mutate(ligand = paste(ligand," ")) 
+circos_links = circos_links %>% inner_join(grid_col_tbl_ligand) %>% inner_join(grid_col_tbl_receptor)
+links_circle = circos_links %>% select(ligand,receptor, weight)
+
+ligand_color = circos_links %>% distinct(ligand,color_ligand_type)
+grid_ligand_color = ligand_color$color_ligand_type %>% set_names(ligand_color$ligand)
+receptor_color = circos_links %>% distinct(receptor,color_receptor_type)
+grid_receptor_color = receptor_color$color_receptor_type %>% set_names(receptor_color$receptor)
+
+grid_col =c(grid_ligand_color, grid_receptor_color)
+
+# give the option that links in the circos plot will be transparant ~ ligand-receptor potential score
+transparency = circos_links %>% mutate(weight =(weight-min(weight))/(max(weight)-min(weight))) %>% mutate(transparency = 1-weight) %>% .$transparency 
+receptor_order = circos_links$receptor %>% unique()
+ligand_order <- c(Keratinocytes_specific_ligands, 
+                  Macrophage_specific_ligands, 
+                  Monocyte_specific_ligands,
+                  DC_specific_ligands, 
+                  Fibroblasts_specific_ligands,
+                  Epithelial_cells_specific_ligands,
+                  T_cells_specific_ligands,
+                  general_ligands) %>% c(paste(.," ")) %>% intersect(circos_links$ligand)
+order = c(ligand_order, receptor_order)
+
+width_same_cell_same_ligand_type = 0.5
+width_different_cell = 6
+width_ligand_receptor = 15
+width_same_cell_same_receptor_type = 0.5
+
+
+gaps <- c(
+  # width_ligand_target,
+  rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "Keratinocytes-specific") %>% distinct(ligand) %>% nrow() -1)),
+  #width_different_cell,
+  #rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "Macrophage-specific") %>% distinct(ligand) %>% nrow() -1)),
+  # width_different_cell,
+  # rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "Monocyte-specific") %>% distinct(ligand) %>% nrow() -1)),
+  #width_different_cell,
+  #rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "DC-specific") %>% distinct(ligand) %>% nrow() -1)),
+  width_different_cell,
+  rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "Fibroblasts-specific") %>% distinct(ligand) %>% nrow() -1)),
+  #width_different_cell,
+  #rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "Epithelial_cells-specific") %>% distinct(ligand) %>% nrow() -1)),
+  width_different_cell,
+  rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "T_cells-specific") %>% distinct(ligand) %>% nrow() -1)),
+  width_different_cell,
+  rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "General") %>% distinct(ligand) %>% nrow() -1)),
+  width_ligand_target,
+  rep(width_same_cell_same_target_type, times = (circos_links %>% filter(receptor_type  == "HS_PPP_T_cells_receptor") %>% distinct(receptor) %>% nrow() -1)),
+  width_ligand_target
+)
+```
+
+```{r}
+
+circos.clear()
+
+circos.par()
+#circos.par(gap.after=c(rep(1,length(rownames(links_circle))-1),10,rep(1,length(colnames(links_circle))-1),10))
+chordDiagram(links_circle, 
+             directional = 1,
+             order=order,link.sort = TRUE, 
+             link.decreasing = FALSE, 
+             grid.col = grid_col,
+             transparency = 0, 
+             diffHeight = 0.005, 
+             direction.type = c("diffHeight", "arrows"),
+             link.arr.type = "big.arrow", 
+             link.visible = links_circle$weight >= cutoff_include_all_ligands,annotationTrack = "grid", 
+             preAllocateTracks = list(track.height = 0.075))
+# we go back to the first track and customize sector labels
+circos.track(track.index = 1, panel.fun = function(x, y) {
+  circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index,
+              facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.55), cex = 0.5)
+}, bg.border = NA) #
+```
+
+```{r}
+circos.clear()
+
+circos.par()
+#circos.par(gap.after=c(rep(1,length(rownames(links_circle))-1),10,rep(1,length(colnames(links_circle))-1),10))
+chordDiagram(links_circle, directional = 1,order=order,link.sort = TRUE, link.decreasing = FALSE, grid.col = grid_col,transparency = transparency, diffHeight = 0.005, direction.type = c("diffHeight", "arrows"),link.arr.type = "big.arrow", link.visible = links_circle$weight >= cutoff_include_all_ligands,annotationTrack = "grid", 
+             preAllocateTracks = list(track.height = 0.075))
+# we go back to the first track and customize sector labels
+circos.track(track.index = 1, panel.fun = function(x, y) {
+  circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index,
+              facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.55), cex = 0.5)
+}, bg.border = NA) #
+```
+
+
+
+# PSO vs PPP: Neutrophils
+
+## Configuration
+
+```{r}
+config_receiver <- "Neutrophils"
+config_condition_oi <- "PPP"
+config_condition_reference <- "PSO"
+config_seurat_filtering <- c("Keratinocytes", 
+                             "Fibroblasts", 
+                             "B_cell", 
+                             "Macrophage", 
+                             "Monocyte", 
+                             "DC", 
+                             "NK_cell", 
+                             "Epithelial_cells",
+                             "Neutrophils",
+                             "T_cells")
+config_sender <- c("Keratinocytes", 
+                             "Fibroblasts", 
+                             "B_cell", 
+                             "Macrophage", 
+                             "Monocyte", 
+                             "DC", 
+                             "NK_cell", 
+                             "Epithelial_cells",
+                             "Neutrophils",
+                             "T_cells")
+```
+
+
+
+## Prepare seurat object
+
+```{r}
+load("data/seurat-133-20240808.RData")
+seurat <- RenameAssays(object = seurat, originalexp = 'RNA')
+Idents(seurat) <- "SingleR.HPCA"
+seurat <- seurat[, seurat$disease %in% c(config_condition_reference, config_condition_oi)]
+seurat <- seurat[, seurat$SingleR.HPCA %in% config_seurat_filtering]
+```
+
+## Load data
+
+```{r}
+#ligand_target_matrix <- readRDS(url("https://zenodo.org/record/7074291/files/ligand_target_matrix_nsga2r_final.rds"))
+ligand_target_matrix <- readRDS(file = "data/ligand_target_matrix_nsga2r_final.rds")
+ligand_target_matrix[1:5,1:5] # target genes in rows, ligands in columns
+
+#lr_network <- readRDS(url("https://zenodo.org/record/7074291/files/lr_network_human_21122021.rds"))
+lr_network <- readRDS(file = "data/lr_network_human_21122021.rds")
+#head(lr_network)
+
+#weighted_networks <- readRDS(url("https://zenodo.org/record/7074291/files/weighted_networks_nsga2r_final.rds"))
+weighted_networks <- readRDS("data/weighted_networks_nsga2r_final.rds")
+#head(weighted_networks$lr_sig) # interactions and their weights in the ligand-receptor + signaling network
+#head(weighted_networks$gr) # interactions and their weights in the gene regulatory network
+```
+
+## Nichenet Run
+
+```{r}
+nichenet_output <- nichenet_seuratobj_aggregate(
+  seurat_obj = seurat, 
+  receiver = config_receiver, 
+  condition_colname = "disease", condition_oi = config_condition_oi, condition_reference = config_condition_reference, 
+  sender = config_sender, 
+  ligand_target_matrix = ligand_target_matrix, 
+  lr_network = lr_network, 
+  weighted_networks = weighted_networks,
+  top_n_ligands = 30,
+  top_n_targets = 50,
+  assay_oi = "RNA",
+  cutoff_visualization = 0.33)
+```
+
+```{r}
+nichenet_output$ligand_activities
+```
+
+
+```{r}
+DotPlot(seurat, features = nichenet_output$top_ligands %>% rev(), cols = "RdYlBu") + RotatedAxis()
+```
+
+```{r}
+DotPlot(seurat, features = nichenet_output$top_ligands %>% rev(), split.by = "disease", 
+        cols = c("lightgrey", "blue","red", "orange", "purple", "yellow")) + 
+  RotatedAxis()
+```
+
+```{r}
+VlnPlot(seurat, features = c("IL36A", "IL36G", "IL36B", "IL36RN", "IL1B", "IL17C", "CXCL1", "CXCL2", "CXCL8", "CXCL10", "CLCN2", "CLCN3", "CLCN5", "CCL20", "CSF3" , "IL8", "DEFB4A", "DEFB103B", "CAMP", "S100A7", "IFNA1", "CD83", "CD86", "HLA-DRA", "IL6", "IL23A", "TNF", "IFNGR1", "TNFRSF1A ","CXCR2" )
+        , split.by = "disease", pt.size = 0, combine = FALSE)
+```
+
+```{r}
+nichenet_output$ligand_differential_expression_heatmap
+```
+
+```{r}
+hmp <- nichenet_output$ligand_target_heatmap
+hmp + theme(
+  axis.title.x = element_text(size = 16),
+  axis.text.x = element_text(size = 10),
+  axis.title.y = element_text(size = 16))
+
+```
+
+## Reference seurat_wrapper_circos
+
+https://github.com/saeyslab/nichenetr/blob/master/vignettes/seurat_wrapper_circos.md
+
+
+```{r}
+ligand_type_indication_df <- assign_ligands_to_celltype(seurat,
+                                                        nichenet_output$top_ligands,
+                                                        celltype_col = "SingleR.HPCA") 
+```
+
+```{r}
+ligand_type_indication_df %>% head()
+##   ligand_type ligand
+## 1           B  H2-M3
+## 2           B   Btla
+## 3          NK  Ptprc
+## 4          NK  H2-Q7
+## 5          NK   Cd48
+## 6        Mono   Ebi3
+```
+
+```{r}
+ligand_type_indication_df$ligand_type %>% table()
+## .
+##       B      DC General    Mono      NK 
+##       2       8       1       6       3
+```
+
+```{r}
+active_ligand_target_links_df <- nichenet_output$ligand_target_df
+active_ligand_target_links_df$target_type <- "exp1" # needed for joining tables
+circos_links <- get_ligand_target_links_oi(ligand_type_indication_df,
+                                           active_ligand_target_links_df,
+                                           cutoff = 0.40) 
+
+head(circos_links)
+```
+
+
+
+```{r}
+target_colors <- c("exp1" = "#03055B") 
+
+vis_circos_obj <- prepare_circos_visualization(circos_links,
+                                               ligand_colors = ligand_colors,
+                                               target_colors = target_colors,
+                                               celltype_order = NULL) 
+
+```
+### First Circos plot
+
+
+```{r}
+make_circos_plot(vis_circos_obj, transparency = FALSE,  args.circos.text = list(cex = 0.5)) 
+```
+
+### Second Circos Plot
+
+```{r}
+# Set the desired minimum value for the weights
+#min_threshold <- 1.0
+
+# Normalize the weights to range from the minimum threshold to 1
+#vis_circos_obj$links_circle$weight <- scales::rescale(vis_circos_obj$links_circle$weight, to = c(min_threshold, 1))
+```
+
+
+
+
+```{r}
+make_circos_plot_transparency_workaround(vis_circos_obj, transparency = TRUE,  args.circos.text = list(cex = 0.5)) 
+```
+
+
+### Third and Fourth Circos plot
+
+```{r}
+par(bg = "transparent")
+
+# Default celltype order
+celltype_order <- unique(circos_links$ligand_type) %>% sort() %>% .[. != "General"] %>% c(., "General")
+
+# Create legend
+circos_legend <- ComplexHeatmap::Legend(
+  labels = celltype_order,
+  background = ligand_colors[celltype_order],
+  type = "point",
+  grid_height = unit(3, "mm"),
+  grid_width = unit(3, "mm"),
+  labels_gp = grid::gpar(fontsize = 8)
+  )
+
+circos_legend_grob <- grid::grid.grabExpr(ComplexHeatmap::draw(circos_legend))
+
+make_circos_plot_transparency_workaround(vis_circos_obj, transparency = TRUE, args.circos.text = list(cex = 0.5))
+p_circos_no_legend <- recordPlot()
+```
+
+```{r}
+cowplot::plot_grid(p_circos_no_legend, circos_legend_grob, rel_widths = c(1, 0.2))
+```
+
+### Visualize ligand-receptor interactions of the prioritized ligands in a circos plot
+
+```{r}
+lr_network_top_df <- nichenet_output$ligand_receptor_df %>%
+  mutate(target_type = "exp1") %>%
+  rename(target=receptor) %>%
+  inner_join(ligand_type_indication_df)
+
+receptor_colors <- c("exp1" = "#03055B")
+
+vis_circos_receptor_obj <- prepare_circos_visualization(lr_network_top_df,
+                                                        ligand_colors = ligand_colors,
+                                                        target_colors = receptor_colors) 
+```
+
+```{r}
+make_circos_plot(vis_circos_receptor_obj, transparency = TRUE,
+                 link.visible = TRUE,  args.circos.text = list(cex = 0.5)) 
+p_circos_no_legend <- recordPlot()
+```
+
+```{r}
+# Default celltype order
+celltype_order <- unique(lr_network_top_df$ligand_type) %>% sort() %>% .[. != "General"] %>% c(., "General") %>% .[. != "exp1"] %>% c(., "exp1")
+# Create legend
+circos_legend <- ComplexHeatmap::Legend(
+  labels = celltype_order,
+  background = ligand_colors[celltype_order],
+  type = "point",
+  grid_height = unit(3, "mm"),
+  grid_width = unit(3, "mm"),
+  labels_gp = grid::gpar(fontsize = 8)
+  )
+
+circos_legend_grob <- grid::grid.grabExpr(ComplexHeatmap::draw(circos_legend))
+cowplot::plot_grid(p_circos_no_legend, circos_legend_grob, rel_widths = c(1, 0.2))
+```
